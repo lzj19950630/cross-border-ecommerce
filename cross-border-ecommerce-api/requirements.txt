@@ -1,0 +1,29 @@
+# Runtime 可选依赖（核心 runtime 本身仅用标准库）
+# 建议在干净虚拟环境中安装；当前本机已有旧版 langgraph，可能与 checkpoint 包冲突。
+#
+#   python -m venv .venv
+#   .venv\Scripts\activate        # Windows
+#   pip install -r runtime/requirements-runtime.txt
+#
+# LangGraph supervisor + 原生 durable checkpointer
+langgraph>=1.2,<2.0
+langgraph-checkpoint-sqlite>=3.1,<4.0
+# 生产 Postgres 断点（按需）
+langgraph-checkpoint-postgres>=2.0,<3.0
+# Postgres 驱动（SQLAlchemy + checkpoint-postgres）
+psycopg[binary]>=3.1
+
+# SQLAlchemy 存储（SQLite/Postgres 通用）
+sqlalchemy>=2.0,<3.0
+# 密钥加密（租户级模型 Key）
+cryptography>=42
+
+# 密码哈希
+bcrypt>=4
+
+# HTTP API
+fastapi>=0.110
+uvicorn>=0.30
+# YAML / 图片校验
+pyyaml>=6.0
+pillow>=10.0

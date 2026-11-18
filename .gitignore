@@ -36,6 +36,8 @@ output/
 dist/
 *.log
 
+generated-images/
+
 # 但 samples/ 下的产出是"预期结果"，同样需要入库
 !Agents/**/samples/*.json
 !Agents/**/samples/*.md
@@ -47,3 +49,16 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+
+# ---- Runtime state ----
+.runtime/
+*.db
+*.db-wal
+*.db-shm
+
+# ---- Python ----
+__pycache__/
+*.pyc
+
+# ---- 外部参考项目（只本地保留，不上传）----
+github/

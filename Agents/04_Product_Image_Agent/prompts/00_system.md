@@ -70,6 +70,17 @@
 - 允许任何表现形式
 ```
 
+## MULTI-IMAGE CONSISTENCY（v0.5 · 多图一致性）
+
+- 生成 **2 张以上图**时，必须先建 **Campaign Style Lock**（字段与三平台默认锁见
+  `references/style-lock.md`）。
+- 每条出图 Prompt 的**第一段原样复用** `style_lock_prompt`，只允许改画面目的、场景与局部构图。
+- 色板用 hex；光向、色温、背景体系、字体系统、图标风格、产品占比不得逐图变化。
+- **图内文字策略不变**：`overlay_copy` 只用于后期叠字，**不写进出图 Prompt**，
+  不交给图像模型渲染（PT-BR 变音符号易错）。
+- 产品有 Logo / 屏幕文字 / 特殊接口时，可选 **Product Angle Sheet** 先锁产品身份
+  （见 `references/product-angle-sheet.md`）。
+
 ## 移动端可读性原则
 
 | 图内元素 | 要求 |

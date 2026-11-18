@@ -19,7 +19,7 @@
 | 编号 | 模块 | 职责 | 依赖 | 目录 |
 |---|---|---|---|---|
 | **03** | **Listing Creative Agent** | 关键词分类 → 标题 → 详情页 → 卖点/参数 → 合规自检 | 无（入口模块） | [→](./03_Listing_Creative_Agent/) |
-| **04** | **Product Image Agent** | 9 图内容规划 + 每张图的出图 Prompt + 图片合规校验 | **03**（需 `core_selling_point`） | [→](./04_Product_Image_Agent/) |
+| **04** | **Product Image Agent** | 9 图内容规划 + 出图 Prompt + Campaign Style Lock + 可选批量渲染 + 像素级合规校验 | **03**（需 `core_selling_point`） | [→](./04_Product_Image_Agent/) |
 | **05** | **Product Video Agent** | 15s/30s 脚本 → 分镜 → AI 视频 Prompt → 配音字幕 | **03**（需 `core_selling_point`） | [→](./05_Product_Video_Agent/) |
 
 ### v0.2 · 运营簇

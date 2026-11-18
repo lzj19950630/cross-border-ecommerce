@@ -1,0 +1,41 @@
+# 动作审批信封 · 标准模板
+# 用途：02/03/04/06/07 的对外动作先登记参数快照，人工批准后才执行。
+# 校验：python -m runtime check-envelope <本文件>
+# 规则：
+#   - risk 必须是 approval（auto 不需要信封；forbidden 不许进信封）
+#   - 每条动作必须有 before / after / reason / evidence / rollback
+#   - 批内同进同退；任一 before 与当前快照不一致 → 整批回滚
+
+envelope_id: "ad-20261118-001"
+module: "06"                    # 01 | 02 | 03 | 04 | 05 | 06 | 07
+action_type: "ad_budget"        # 同一类型的动作打成一个批次
+risk: "approval"                # auto | approval | forbidden
+decision: "pending"             # pending | approved | rejected
+drift_policy: "abort_whole_batch"  # abort_whole_batch | apply_anyway
+requested_by: "agent"
+decided_by: null
+comment: null
+
+actions:
+  - action: "ad.set_budget"     # 见 runtime/actions.py 的注册表
+    target: "campaign:123"
+    before:
+      budget: 200
+      currency: "BRL"
+    after:
+      budget: 120
+      currency: "BRL"
+    reason: "ROAS 低于盈亏线 0.5×，按 P0 止血降预算"
+    evidence:
+      - "ad-report#row-18"
+      - "fee-preset#shopee_br"
+    rollback: "恢复 budget=200"
+
+  # 可继续追加同批次动作；不同类型请拆成不同信封
+  # - action: "ad.set_bid"
+  #   target: "campaign:123/adgroup:456"
+  #   before: {bid: 1.20}
+  #   after: {bid: 0.90}
+  #   reason: "..."
+  #   evidence: ["ad-report#row-18"]
+  #   rollback: "恢复 bid=1.20"

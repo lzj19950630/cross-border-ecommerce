@@ -19,14 +19,19 @@
 | `spec_table` | 03 | 参数校验用 |
 | `forbidden_words[]` | 03 | 图内文字拦截 |
 | `has_product_photo` | 人工 | `true` / `false`——是否有实拍图作为参考 |
+| `campaign_style_lock` | 人工 + 本模块 | 多图一致性风格锁，见 `references/style-lock.md` |
+| `angle_sheet` | 可选 | 产品角度基准图；有则正式图必须引用 |
 
 ---
 
 # Prompt 结构公式
 
-每张图的 Prompt 由 **七个槽位**构成，缺一不可：
+每张图的 Prompt 由 **风格锁 + 七个槽位**构成：
 
 ```
+[STYLE LOCK]  直接原样复用 campaign_style_lock.style_lock_prompt（多图必填）
+[REFERENCE]   有 Angle Sheet 时只写一句：
+              Use the product angle sheet only as product identity reference.
 [SUBJECT]     主体：是什么，什么形态，什么颜色材质
 [MATERIAL]    材质与表面处理：哑光/亮面/金属/织物，纹理细节
 [COMPOSITION] 构图：角度、位置、占画比例、留白区
@@ -34,6 +39,7 @@
 [BACKGROUND]  背景：纯白/场景/渐变，具体描述
 [STYLE]       风格：写实/产品摄影/3D 渲染，参考质感
 [PARAMETERS]  技术参数：比例、尺寸、（真实渲染时）相机参数
+[NEGATIVE]    否定清单：末段单独列出，含 must_not_change 全部条目
 ```
 
 ## 关键原则
@@ -44,6 +50,8 @@
 | **不要说"好看"** | 用可执行的视觉描述替代主观评价 |
 | **图内文字单独处理** | 文字**不要**写进出图 Prompt，而是标注为「后期叠字」。原因：当前图像模型渲染文字仍不稳定，尤其葡语变音符号（ã ç õ é）极易出错 |
 | **一个 Prompt 出一个镜头** | 不要试图让一张 Prompt 生成"组合图" |
+| **多图必须复用同一把风格锁** | 2 张以上图，每条 Prompt 第一段原样粘贴 `style_lock_prompt`；只改画面目的与构图 |
+| **否定清单必须完整** | 每条 Prompt 末尾都要有 negative 段，且包含 `must_not_change` 全部条目；不能只写"no text"敷衍 |
 
 > **图内文字的处理建议**：本模块输出**不带文字的产品画面 Prompt** + **独立的图内文案**，由设计工具（Figma / Canva / Photoshop）后期叠字。这样文字一定准确、一定清晰、一定不会出现变音符号错误。
 
@@ -58,12 +66,16 @@
 
 **出图 Prompt（<prompt_language>）**
 ```text
-<完整 Prompt，七个槽位齐备>
+<完整 Prompt：风格锁 + 七个槽位 + 否定清单>
 ```
+
+**风格锁与参考图**
+- 风格锁：✅ 已原样复用 `style_lock_prompt` / ❌ <原因>
+- 参考图：<Angle Sheet / 产品实拍 / 无>
 
 **负面 Prompt**
 ```text
-<需要排除的元素>
+<需要排除的元素；必须含 must_not_change 全部条目>
 ```
 
 **图内文案（后期叠字）**
@@ -169,9 +181,29 @@ medical setting, exaggerated dramatic lighting, unrealistic physics
 
 ---
 
+# 交付与渲染（v0.5）
+
+1. 先按 `templates/output_image_prompt_pack.yaml` 输出完整图包（含 `campaign_style_lock`、
+   `angle_sheet`、`prompts[].prompt/negative_prompt`、`overlay_copy`、`render`）。
+2. 人工确认 `prompts[].prompt` 的第一段是**原样复用的风格锁**。
+3. 需要实际出图时，用批量适配器（不会渲染 layout / photo_required）：
+
+```bash
+python scripts/render_prompt_pack.py output_image_prompt_pack.yaml --list
+python scripts/render_prompt_pack.py output_image_prompt_pack.yaml \
+  --reference product.png --platform shopee
+```
+
+4. 出图后看 `render_manifest.json` 的校验结果；主图不过 `check_main_image.py` 不许交付。
+
+---
+
 # SELF-CHECK
 
-- [ ] 每张 AI 出图 Prompt 都齐备七个槽位
+- [ ] 每张 AI 出图 Prompt 都齐备「风格锁 + 七个槽位 + 否定清单」
+- [ ] 2 张以上图是否 100% 复用了同一段 `style_lock_prompt`？
+- [ ] 每条否定清单是否包含 `must_not_change` 全部条目？
+- [ ] 有 Angle Sheet 时，正式图是否只写了那一句固定引用？
 - [ ] 每张图都配了负面 Prompt
 - [ ] ML / Amazon 主图 Prompt 的负面词包含 `text of any kind`
 - [ ] 不防水产品的场景 Prompt 负面词包含 `rain, water, swimming pool`

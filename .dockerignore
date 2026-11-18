@@ -1,0 +1,14 @@
+.git
+.github
+.idea
+.runtime
+generated-images
+exports
+github
+**/__pycache__
+**/*.pyc
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*

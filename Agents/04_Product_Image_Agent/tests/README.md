@@ -57,4 +57,49 @@ python check_main_image.py ../tests/shopee_fixed.png  --platform shopee         
 
 ---
 
-**脚本**：[`scripts/check_main_image.py`](../scripts/check_main_image.py) · **规则卡**：[Shopee](../references/platform-shopee.md) · [Mercado Livre](../references/platform-mercadolivre.md) · [Amazon](../references/platform-amazon.md)
+## 渲染脚本测试（v0.5）
+
+夹具：[`sample_prompt_pack.yaml`](./sample_prompt_pack.yaml)（5 个图位：1/2/4 可渲染，3 layout，8 photo_required）。
+
+```bash
+cd Agents/04_Product_Image_Agent/scripts
+
+# 1) 图位筛选：应显示 1/2/4 可渲染，3 layout，8 photo_required
+python render_prompt_pack.py ../tests/sample_prompt_pack.yaml --list
+
+# 2) 执行计划：3 个 planned，不调用 API
+python render_prompt_pack.py ../tests/sample_prompt_pack.yaml \
+  --dry-run --allow-no-reference --job-dir "$TEMP/04-dry" --json
+
+# 3) 批量 Prompt 模式：3 个 prompt_only，Prompt 文件含否定清单
+python render_prompt_pack.py ../tests/sample_prompt_pack.yaml \
+  --render-mode prompt --allow-no-reference --job-dir "$TEMP/04-pack" --json
+
+# 4) 参考图缺失且未加 --allow-no-reference：应报 [INPUT_MISSING] 并 exit 1
+python render_prompt_pack.py ../tests/sample_prompt_pack.yaml --render-mode prompt \
+  --job-dir "$TEMP/04-block" ; echo "exit=$?"
+```
+
+预期：
+
+| 测试 | 预期 |
+|---|---|
+| `--list` | slot 1/2/4 yes；slot 3 `layout`；slot 8 `photo_required` |
+| `--dry-run` | `status=planned`，`skipped` 含 3 与 8 |
+| `--render-mode prompt` | 3 个 `prompt_only`；`prompts/*.txt` 末尾有 `Avoid / negative constraints` |
+| 无参考图 | exit 1，报 `[INPUT_MISSING]` 列出 slot 1, 2, 4 |
+
+> 这些测试**不需要 API Key**：`--render-mode prompt` 只落 Prompt，不调用图片接口。
+
+### 一键自测（含 mock 图片接口）
+
+```bash
+python tests/test_render.py
+```
+
+脚本会启动本地 mock API，验证 `generations`、`edits`、图位跳过、manifest 落盘、
+`overlay_copy` 不进入出图 Prompt。**不需要真实 Key，也不会访问外网。**
+
+---
+
+**脚本**：[`scripts/check_main_image.py`](../scripts/check_main_image.py) · [`render_openai.py`](../scripts/render_openai.py) · [`render_prompt_pack.py`](../scripts/render_prompt_pack.py) · **规则卡**：[Shopee](../references/platform-shopee.md) · [Mercado Livre](../references/platform-mercadolivre.md) · [Amazon](../references/platform-amazon.md) · [Style Lock](../references/style-lock.md) · [Angle Sheet](../references/product-angle-sheet.md)

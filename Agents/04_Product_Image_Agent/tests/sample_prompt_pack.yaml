@@ -1,0 +1,108 @@
+# 测试夹具 · 04 图包批量渲染
+# 用途：验证 render_prompt_pack.py 的图位筛选、Prompt 落盘、negative 合并、
+#       overlay_copy 不渲染、layout / photo_required 跳过。
+# 注意：Prompt 仅为测试用简短文本，不是可发布的完整出图 Prompt。
+
+meta:
+  product_name: "Carregador Portátil 20000mAh"
+  platform: shopee
+  target_market: "巴西"
+  mode: standard
+  generated_at: "2026-11-18"
+  prompt_version: "04-Product-Image v0.5-test"
+  upstream: "03-Listing-Creative"
+
+campaign_style_lock:
+  enabled: true
+  visual_direction: "clean tech ecommerce"
+  palette: ["#FFFFFF", "#1C1C1E", "#007AFF"]
+  temperature: "neutral-cool"
+  lighting: "soft studio key light from upper left"
+  background_system: "clean white studio background"
+  layout_system: "rounded rectangular labels, generous whitespace"
+  icon_system: "thin-line icons, single accent color"
+  product_presentation: "front view, product occupies 80% of frame"
+  text_policy: "图内文字后期叠字，不进出图 Prompt"
+  style_lock_prompt: >-
+    Consistent premium ecommerce visual system: clean white studio background,
+    neutral-cool soft lighting from upper left, fixed palette of #FFFFFF / #1C1C1E /
+    #007AFF, modern geometric sans-serif label placeholders only, thin-line icons,
+    stable product scale and placement, generous whitespace. Keep the product shape,
+    color, logo and ports exactly as in the reference image.
+
+angle_sheet:
+  needed: false
+  reference_image: ""
+  consistency_gate: "产品形状/颜色/Logo 跑偏时先重生角度基准图"
+
+prompts:
+  - slot: 1
+    role: "主图"
+    type: "ai"
+    asset_type: "main"
+    prompt: >-
+      Studio packshot of a 20000mAh power bank, rounded rectangular body,
+      matte black #1C1C1E with dark gray #3A3A3C buttons, front view,
+      product occupies 80% of frame, even 9% margin on all sides,
+      soft studio lighting, pure white #FFFFFF background, sRGB,
+      square 1:1, clean ecommerce photography.
+    negative_prompt: "no text overlay, no watermark, no border, no collage, no extra objects, keep logo and ports unchanged"
+    aspect_ratio: "1:1"
+    recommended_size: "1024x1024"
+    reference_image_needed: true
+
+  - slot: 2
+    role: "核心卖点图"
+    type: "ai"
+    asset_type: "main"
+    prompt: >-
+      Product hero image of the same power bank on a clean light surface,
+      showing three output ports clearly, product occupies 78% of frame,
+      soft neutral lighting, subtle contact shadow, minimal composition.
+    negative_prompt: "no text overlay, no watermark, no extra devices, no logo changes"
+    aspect_ratio: "1:1"
+    recommended_size: "1024x1024"
+    reference_image_needed: true
+
+  - slot: 3
+    role: "参数规格图"
+    type: "layout"
+    composition: "参数表排版图，由设计工具制作"
+    copy: "Capacidade 20000mAh · Saída 45W"
+    copy_chars: 31
+
+  - slot: 4
+    role: "使用场景图 A"
+    type: "ai"
+    asset_type: "detail"
+    prompt: >-
+      Lifestyle scene of the same power bank on a wooden cafe table next to a
+      smartphone, natural window light, product occupies 60% of frame,
+      shallow depth of field, no recognizable faces.
+    negative_prompt: "no text overlay, no watermark, no recognizable faces, no extra products"
+    aspect_ratio: "1:1"
+    recommended_size: "1024x1024"
+    reference_image_needed: true
+
+  - slot: 8
+    role: "包装清单图"
+    type: "photo_required"
+    note: "必须实拍，AI 生成会导致配件缺失差评"
+    shoot_spec:
+      layout: "平铺俯拍"
+      items: ["1× Carregador", "1× Cabo USB-C", "Não incluso: adaptador de tomada"]
+      must_show_exclusion: true
+
+overlay_copy:
+  - slot: 1
+    main_copy: "Carga rápida 45W"
+    sub_copy: "20000mAh"
+    chars: 18
+    chars_limit: 20
+    position: "居中偏上"
+    font_size_hint: "主文案高度 ≥ 图高 4%"
+overlay_note: "图内文字由设计工具后期叠字，不用图像模型渲染（葡语变音符号极易出错）"
+
+render:
+  reference_image: ""
+  mode: "auto"

@@ -101,6 +101,25 @@ reference:
 
 ---
 
+## 5.5 渲染与产品身份基准（可选，v0.5）
+
+```yaml
+render:
+  enabled: false               # true = 用 scripts/ 里的渲染器直接出图
+  reference_image: ""          # 产品实拍图路径；有 Logo/屏幕文字/特殊接口时必填
+  size_override: ""            # 留空用各图 recommended_size
+  check_main_image: true       # 出图后校验 slot 1
+
+angle_sheet:
+  needed: false                # 只有 1 张产品照且要出 3 张以上正式图时建议 true
+  note: "先锁产品身份，再出正式图；详见 references/product-angle-sheet.md"
+```
+
+> **不配 API 也能跑**：渲染器 `--mode auto` 会自动降级为只输出 Prompt。
+> **图内文字仍然后期叠字**，渲染器不会把 `overlay_copy` 送进图像模型。
+
+---
+
 ## 6. mode 专属字段
 
 ### mode = variant
@@ -129,3 +148,6 @@ change_scope: "main_image_only"  # 只改主图，其余 8 张不动
 - [ ] 没有粘贴竞品图片作为图生图素材
 - [ ] 我理解：**图 8（包装清单）必须实拍**，AI 生成会引发配件缺失差评
 - [ ] 我理解：**图内文字由设计工具后期叠字**，不靠图像模型渲染
+- [ ] 出 2 张以上图时，已准备 `campaign_style_lock`（或允许 Agent 建锁）
+- [ ] 如使用渲染器，`reference_image` 已提供；图位要求参考图时不会被跳过
+- [ ] 如使用 Angle Sheet，已通过一致性 Gate 再出正式图

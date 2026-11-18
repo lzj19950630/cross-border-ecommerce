@@ -106,7 +106,8 @@ SOP 1.8 关键词表          ├──►  03 Listing Creative Agent
 SOP 3.3 Listing           │     │ 输出：标题 / 详情页 / 卖点 / 参数 / 关键词
 SOP 2.3 差异化            ┘     ▼
                           04 Product Image Agent
-                          │ 输出：9 图规划 + 每张图的出图 Prompt
+                          │ 输出：9 图规划 + Campaign Style Lock + 每张图的出图 Prompt
+                          │ 可选：OpenAI 兼容 API 批量出图 + 像素级校验
                           ▼
                           05 Product Video Agent
                             输出：脚本 / 分镜 / AI 视频 Prompt / 配音字幕
@@ -155,7 +156,7 @@ SOP 2.3 差异化            ┘     ▼
 | **01 Market Research** | 前置判断、容量、集中度、价格带、配置组合、竞品浅层分析、**指标计算脚本** | 选品决策、定价、关键词表（交 03）、评论深度归因（交 07） |
 | **02 Product Strategy** | 产品定位、核心配置、主推卖点收敛、风险规避、定价模型、SKU 四角色 | **选品决策（需人确认）**、核价、平台活动规则、实际采购 |
 | **03 Listing Creative** | 关键词分类、标题生成、详情页 7 段、卖点提炼、参数表、合规自检 | 选品决策、定价、广告出价 |
-| **04 Product Image** | 9 图内容规划、每张图的构图/文案/出图 Prompt、白底与合规校验 | 实际渲染图片（交给 ImageGen / Midjourney）、渲染后质检 |
+| **04 Product Image** | 9 图内容规划、Campaign Style Lock、每张图的构图/文案/出图 Prompt、像素级合规校验 | 可选 OpenAI 兼容 API 直接出图（不配 API 时只出 Prompt）；渲染后的审美与业务质检仍需人工 |
 | **05 Product Video** | 15s/30s 脚本、分镜表、镜头 Prompt、配音脚本文案、字幕 | 实际剪辑合成、BGM 版权采购 |
 | **06 Advertising** | 漏斗诊断、动作清单、盈亏线核算、预算与 ROI 目标、预算节律 | 实际改价改图、后台操作、实时竞价 |
 | **07 Review Analysis** | 分类归因、误解型识别、卖点排序、参数红线、修补建议、客服话术 | 实际修改 Listing、后台操作、联系买家 |
@@ -270,4 +271,25 @@ SOP 把差评按现象罗列，但没有把"**描述的问题**"和"**产品的�
 
 ---
 
-**相关文档**：[01 Prompt 设计规范](./01_Prompt_Design_Guide.md) · [02 平台字段规范](./02_Platform_Output_Spec.md) · [03 合规红线](./03_Compliance_Guard.md) · [04 交付自检清单](./04_Result_Checklist.md)
+## 四、运行时层（v0.6，可选）
+
+上述 7 个 Agent 目前是"Prompt + 模板 + 脚本"的形态。如果后续要升级成多智能体系统，
+在它们之上加一层平台核心（`runtime/`）：
+
+```text
+IntentRouter（意图识别）
+  → ManagerPlanner（≤7 切片 + 依赖 + 审批点）
+  → LangGraph Supervisor（7 个 Agent 子图）
+  → ToolRegistry（现有确定性脚本）
+  → ApprovalEnvelope（对外动作审批）
+  → EvidenceBlock（引用溯源）
+  → Eval（金标场景）
+```
+
+**边界**：这一层不改变 7 个 Agent 的方法论，也不要求工具箱依赖运行时；
+它只是把 Agent 的输出契约化，让未来的编排器可以消费。详见
+[docs/06_Agent_Runtime_Integration.md](./06_Agent_Runtime_Integration.md)。
+
+---
+
+**相关文档**：[01 Prompt 设计规范](./01_Prompt_Design_Guide.md) · [02 平台字段规范](./02_Platform_Output_Spec.md) · [03 合规红线](./03_Compliance_Guard.md) · [04 交付自检清单](./04_Result_Checklist.md) · [06 运行时集成](./06_Agent_Runtime_Integration.md)

@@ -1,0 +1,32 @@
+# 证据块 · 标准模板
+# 用途：01/02/06/07 等输出里的每个结论/数字都挂证据；正文用 [1] [2] 引用。
+# 校验：python -m runtime check-evidence --text <正文> --evidence <本文件>
+# 规则：
+#   - claim_id 唯一；正文 [n] 必须能解析到第 n 条
+#   - evidence_type 只能是：spec_table / data_file / ad_report / review /
+#     fee_rule / platform_rule / metric_report / manual
+#   - 没有证据的结论不许交付
+
+items:
+  - claim_id: "C-06-01"
+    claim: "该组 CTR 为 1.2%，低于 2% 基准"
+    evidence_type: "ad_report"
+    source: "Agents/06_Advertising_Optimization_Agent/examples/sample-ad-report.csv"
+    locator: "row 18 / group=G2"
+    retrieved_at: "2026-11-18"
+    confidence: 1.0
+
+  - claim_id: "C-06-02"
+    claim: "Shopee BR 佣金按价格分档"
+    evidence_type: "fee_rule"
+    source: "Agents/02_Product_Strategy_Agent/scripts/platform_fees.json"
+    locator: "shopee_br.tiers"
+    retrieved_at: "2026-11-18"
+    confidence: 1.0
+
+  - claim_id: "C-06-03"
+    claim: "该 SKU 的盈亏线 ROAS 为 2.82"
+    evidence_type: "metric_report"
+    source: "python Agents/06_Advertising_Optimization_Agent/scripts/ad_metrics.py calc ..."
+    locator: "stdout / breakeven_roas"
+    retrieved_at: "2026-11-18"

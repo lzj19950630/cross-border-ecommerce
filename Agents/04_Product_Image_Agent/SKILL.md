@@ -2,16 +2,17 @@
 name: sop-ecom-image
 description: >-
   跨境电商商品图生成 Skill，Shopee 巴西站与 Mercado Livre 专精。9 图框架规划、产品身份锁定、
-  平台规则内置（ML 新规：白底/纯色/实景按类目）、像素级合规校验与自动修复。
+  Campaign Style Lock 多图一致性、可选 Product Angle Sheet、平台规则内置
+  （ML 新规：白底/纯色/实景按类目）、OpenAI 兼容 API 批量出图、像素级合规校验与自动修复。
   当用户要做商品主图、场景图、详情图、白底图、9 张图、图合规检查、换背景、SKU 换色时使用。
-  中文「做图 / 主图 / 场景图 / 详情图 / 合规检查」同样触发。
+  中文「做图 / 主图 / 场景图 / 详情图 / 合规检查 / 批量出图」同样触发。
   NOT for 视频剪辑、纯格式转换、批量压缩。
 allowed-tools:
   - Bash(python *)
   - Read
   - Write
 metadata:
-  version: 0.4.0
+  version: 0.5.0
   category: e-commerce/image-generation
   license: MIT
 ---
@@ -70,9 +71,14 @@ metadata:
 ## 工作流总览
 
 ```text
-① 身份锁定 → ② 平台规则路由 → ③ 图序列规划 → ④ 逐图组装 Prompt
-→ ⑤ 出图（三通道任选） → ⑥ 像素级合规校验（--fix 自动修复） → ⑦ 交付
+① 身份锁定 → ② 平台规则路由 → ③ 图序列规划 → ④ 建 Campaign Style Lock
+→ ⑤（可选）生成 Product Angle Sheet → ⑥ 逐图组装 Prompt
+→ ⑦ 出图（三通道任选；B 通道可用批量适配器） → ⑧ 像素级合规校验（--fix 自动修复） → ⑨ 交付
 ```
+
+> **v0.5 的新增点**：④ 风格锁与 ⑤ 角度基准图解决"9 张图像拼凑"和"越画越不像"；
+> ⑦ 的通道 B 现在有**实际可执行的脚本**，不再只是"请你自行调 API"。
+> 但图内文字仍不由模型渲染——这条底线不变。
 
 ---
 
@@ -100,12 +106,47 @@ ML 没有张数上限（建议 6–8 张），前 5 张按 ML 首图规则执行
 
 ---
 
-## ③ Prompt 组装：五槽位 + 七条铁律
+## ③ 多图一致性：Campaign Style Lock（v0.5 新增）
 
-每条出图 prompt 按五个槽位组装：
+**2 张以上图必须建风格锁。** 完整字段、三平台默认锁、写法规则见
+[references/style-lock.md](references/style-lock.md)。
+
+三条硬规则：
+
+1. **每条 Prompt 第一段原样复用** `style_lock_prompt`，不改写、不缩略；
+2. **只允许改**画面目的、场景、局部构图；色板、光向、背景体系、字体、图标、产品占比不动；
+3. **图内文字仍后期叠字**，不把 `overlay_copy` 写进出图 Prompt。
+
+输出模板字段：`campaign_style_lock`（含 `style_lock_prompt`）。
+
+---
+
+## ④ 产品角度基准图（可选，v0.5 新增）
+
+**触发条件**：只有 1 张产品照、却要出 3 张以上正式图；或产品有 Logo / 屏幕文字 / 特殊接口，
+怕"越画越不像"。
 
 ```text
-[产品身份] + [场景与构图] + [光影] + [平台技术参数] + [否定清单]
+生成多角度 Angle Sheet → 一致性 Gate（形状/颜色/Logo/接口/包装）
+→ 通过后，正式图全部以它为参考图
+```
+
+完整 Prompt 模板、命令与 Gate 清单见
+[references/product-angle-sheet.md](references/product-angle-sheet.md)。
+
+> Angle Sheet 是**临时工作图**，不是上架图；正式图 Prompt 只允许写一句
+> `Use the product angle sheet only as product identity reference.`
+
+---
+
+## ⑤ Prompt 组装：五槽位 + 七条铁律
+
+每条出图 prompt 按「风格锁 + 五个槽位」组装：
+
+```text
+[Campaign Style Lock 原文]
++ [产品身份 / Angle Sheet 引用句]
++ [场景与构图] + [光影] + [平台技术参数] + [否定清单]
 ```
 
 七条铁律（来自一线实战，逐条硬性执行）：
@@ -120,13 +161,57 @@ ML 没有张数上限（建议 6–8 张），前 5 张按 ML 首图规则执行
 
 ---
 
-## ④ 出图通道（三选一，按环境自动降级）
+## ⑥ 出图通道（三选一，按环境自动降级）
 
 | 通道 | 条件 | 用法 |
 |---|---|---|
 | **A. Agent 内置生图** | 你所在的 AI 环境自带画图工具 | 直接把组装好的 prompt 交给生图工具 |
-| **B. OpenAI 兼容 API** | 有 `$IMAGE_API_BASE` + `$IMAGE_API_KEY` | 调 `/v1/images/edits`，参考图走 `image_urls` |
-| **C. 仅输出 prompt 包** | 什么都没有 | 输出 `prompt.txt` + 在线工具链接，人工粘贴 |
+| **B. OpenAI 兼容 API**（v0.5 带脚本） | `IMAGE_API_BASE` + `IMAGE_MODEL` + `IMAGE_API_KEY`（兼容 `OPENAI_*` / `IMG_*` 别名） | 单张：`render_openai.py`；批量：`render_prompt_pack.py` |
+| **C. 仅输出 Prompt 包** | 没有 API 或不想配 | 渲染器 `--mode auto` 自动降级；批量适配器写 `prompts/` + `render_manifest.json` |
+
+**配置**（`.env` 或环境变量，三种命名脚本都认）：
+
+```dotenv
+IMAGE_API_BASE=https://api.openai.com/v1
+IMAGE_MODEL=gpt-image-1
+IMAGE_API_KEY=your-api-key
+```
+
+### 单张渲染
+
+```bash
+# 配置齐全自动出图；没有配置则只输出 Prompt
+python scripts/render_openai.py \
+  --prompt-file prompts/slot-01.txt \
+  --image product.png \
+  --job-dir generated-images/pack-001 \
+  --asset-type main \
+  --size 1024x1024
+```
+
+### 批量渲染（推荐）
+
+```bash
+# 先看哪些图位会被渲染（layout / photo_required 会自动跳过）
+python scripts/render_prompt_pack.py output_image_prompt_pack.yaml --list
+
+# 只看执行计划，不出图
+python scripts/render_prompt_pack.py output_image_prompt_pack.yaml --dry-run --reference product.png
+
+# 正式跑：没有 API 时自动降级为只输出 Prompt
+python scripts/render_prompt_pack.py output_image_prompt_pack.yaml \
+  --reference product.png --platform shopee
+```
+
+**批量适配器的四条硬规则**：
+
+1. `type = layout`（参数图/尺寸图/售后图）与 `type = photo_required`（包装清单图）
+   **一律跳过**，不交给图像模型；
+2. `overlay_copy` **不送进图像模型**——图内文字仍由设计工具后期叠字；
+3. 图位标记 `reference_image_needed: true` 但没给参考图 → **阻塞**（`[INPUT_MISSING]`）；
+   显式加 `--allow-no-reference` 才继续，且会在 manifest 里留下警告；
+4. 出图后默认只校验 **slot 1 主图**；`--check-all` 才检查全部 1:1 图
+   （场景图用主图标准会被误判）。
 
 **模型路由**（如可用）：
 - 场景图 / 生活图 / 多版本尝试 → 快模型（Flare 类）
@@ -134,7 +219,7 @@ ML 没有张数上限（建议 6–8 张），前 5 张按 ML 首图规则执行
 
 ---
 
-## ⑤ 出图后必须过像素校验（不是"看一眼"）
+## ⑦ 出图后必须过像素校验（不是"看一眼"）
 
 ```bash
 python scripts/check_main_image.py 出图.png --platform mercadolivre
@@ -144,10 +229,12 @@ python scripts/check_main_image.py 出图.png --platform shopee --fix 修复后.
 脚本会**逐像素**检查：尺寸、正方形、主体占比、背景纯净度/均匀度、文件大小，
 失败项会直接列出；`--fix` 能自动修的（白底不纯、留白过多、非正方形）会直接修。
 
-**校验标准来自平台规则卡，不是拍脑袋。** 校验不过的图不许交付。
+批量适配器会在 `render_manifest.json` 里记录每个图位的渲染状态、输出路径与校验结果；
+校验不过的图**不许交付**。
 
-**自测**：[`tests/`](tests/README.md) 内置 5 张合成夹具（含故意违规项）与预期结果，
-clone 后跑一遍即可验证脚本是否正常。
+**校验标准来自平台规则卡，不是拍脑袋。**
+**自测**：[`tests/`](tests/README.md) 内置 5 张合成夹具 + 1 份图包夹具 + 1 个 mock API 自测脚本
+（`tests/test_render.py`，不需要真实 Key），clone 后跑一遍即可验证脚本是否正常。
 
 ---
 
@@ -155,12 +242,14 @@ clone 后跑一遍即可验证脚本是否正常。
 
 | 限制 | 说明 |
 |---|---|
-| **不做实际渲染** | 本 Skill 输出的是「规划 + Prompt + 校验」，画图交给生图模型（通道 A/B/C） |
+| **默认不强制渲染** | 本 Skill 仍可只输出「规划 + Prompt + 校验」；通道 B/C 是可选执行层，不配 API 也能完整交付 Prompt 包 |
+| **批量适配器读 YAML 需 PyYAML** | 也可把图包另存为 `.json`；渲染脚本本身纯标准库 |
 | **图内文字检测不自动** | 有没有违规叠字需要人工确认（OCR 依赖重，暂未内置） |
+| **图像模型不保证文字/Logo 100% 准确** | 图内文字仍后期叠字；Logo/屏幕数字需人工比对 Angle Sheet |
 | **ML 类目背景规则会变** | 白底/实景按类目划分，出大目录前先去 ML 卖家中心核对当前类目 |
 | **平台规则为编写时公开值** | 发布前必须到卖家中心复核 |
 | **不替代修图** | 复杂的产品瑕疵修图仍需人工 |
 
 ---
 
-**返回**：[04 模块 README](README.md) · **规则卡**：[Shopee](references/platform-shopee.md) · [Mercado Livre](references/platform-mercadolivre.md) · [9 图场景库](references/scenarios-9grid.md)
+**返回**：[04 模块 README](README.md) · **规则卡**：[Shopee](references/platform-shopee.md) · [Mercado Livre](references/platform-mercadolivre.md) · [Amazon](references/platform-amazon.md) · **多图一致性**：[Campaign Style Lock](references/style-lock.md) · **产品身份**：[Product Angle Sheet](references/product-angle-sheet.md) · **9 图场景库**：[scenarios-9grid.md](references/scenarios-9grid.md)

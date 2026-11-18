@@ -1,6 +1,11 @@
 # 04 · Product Image Agent
 
-**主图与详情图生成智能体** · 从一句卖点，到 9 张可直接出图的 Prompt。
+**主图与详情图生成智能体** · 从一句卖点，到 9 张可直接出图的 Prompt——
+v0.5 起还可以选配**批量渲染执行层**，直接调用 OpenAI 兼容图片 API 出图。
+
+> **v0.5 新增**：Campaign Style Lock（多图一致性）、Product Angle Sheet（产品身份基准）、
+> `render_openai.py`（单张渲染）、`render_prompt_pack.py`（批量渲染 + 自动跳过非 AI 图位 + 出图后校验）。
+> **边界不变**：图内文字仍由设计工具后期叠字；包装清单图仍必须实拍。
 
 ---
 
@@ -71,18 +76,37 @@ SOP 3.3 写了一句：
         └──────────────┬───────────────────┘
                        ▼
         ┌──────────────────────────────────┐
-        │ 02_image_prompt_generator.md     │  Step 3  逐图生成出图 Prompt
-        │                                  │  Step 4  负面 Prompt + 合规校验
+        │ style-lock.md                    │  Step 3  建 Campaign Style Lock
+        │ product-angle-sheet.md           │  Step 3.5（可选）生成 Angle Sheet
         └──────────────┬───────────────────┘
                        ▼
-        输出：output_image_prompt_pack.yaml  →  交给 ImageGen / Midjourney / 即梦 等实际渲染
+        ┌──────────────────────────────────┐
+        │ 02_image_prompt_generator.md     │  Step 4  逐图生成出图 Prompt
+        │                                  │  Step 5  负面 Prompt + 合规校验
+        └──────────────┬───────────────────┘
+                       ▼
+        输出：output_image_prompt_pack.yaml
+                       │
+          ┌────────────┴────────────┐
+          ▼                         ▼
+  通道 A/C：交给 ImageGen      通道 B：render_prompt_pack.py
+  / Midjourney / 即梦          （无 API 自动降级为 Prompt）
+          │                         │
+          └────────────┬────────────┘
+                       ▼
+        check_main_image.py 像素级校验（不过不交付）
 ```
 
-**本模块的边界**：只负责"出图前的全部设计工作"，**不负责渲染**。渲染交给图像生成工具，渲染后的品控由 [`docs/04_Result_Checklist.md`](../../docs/04_Result_Checklist.md) 的 C 段负责。
+**本模块的边界**：
+
+- **默认不强制渲染**：只出「规划 + Prompt + 校验」也能完整交付；
+- 通道 B 是**可选执行层**，不配置 API 时自动降级为只输出 Prompt；
+- **图内文字仍由设计工具后期叠字**，渲染器不会把 `overlay_copy` 送进图像模型；
+- 渲染后的品控由 [`docs/04_Result_Checklist.md`](../../docs/04_Result_Checklist.md) 的 C 段负责。
 
 ---
 
-## 四·五、Skill 形态（v0.4 新增）
+## 四·五、Skill 形态（v0.4 新增，v0.5 扩展）
 
 本模块已按社区标准 Skill 结构组织（对标 GitHub 头部电商生图 Skill），
 **可以被 Claude Code / Codex / Cursor / WorkBuddy 等任何读取 `SKILL.md` 的 Agent 直接安装调用**：
@@ -94,11 +118,18 @@ SOP 3.3 写了一句：
 │   ├── platform-shopee.md          # Shopee 巴西规则卡（首图推荐叠字 / 2MB 上限 / 9 图）
 │   ├── platform-mercadolivre.md    # ML 规则卡（2026 新规：背景按类目 / 占比 95% / 首图禁促销文字）
 │   ├── platform-amazon.md          # Amazon 对照卡（最严白底标准）
-│   └── scenarios-9grid.md          # 9 图场景库（每图位：目的/构图/prompt 骨架/平台差异）
+│   ├── scenarios-9grid.md          # 9 图场景库（每图位：目的/构图/prompt 骨架/平台差异）
+│   ├── style-lock.md               # 多图一致性规则卡（v0.5）⭐
+│   └── product-angle-sheet.md      # 产品角度基准图规则卡（v0.5）⭐
 ├── scripts/
-│   └── check_main_image.py         # 像素级合规校验 + --fix 自动修复（纯 Pillow）⭐
+│   ├── check_main_image.py         # 像素级合规校验 + --fix 自动修复（Pillow）⭐
+│   ├── render_openai.py            # 单张渲染：OpenAI 兼容 API（纯标准库）⭐
+│   ├── render_prompt_pack.py       # 批量渲染：读图包 / 跳过非 AI 图位 / 自动校验 ⭐
+│   └── README.md                   # 三个脚本的用法、依赖、边界
 ├── tests/
-│   ├── README.md                   # 5 张合成夹具 + 预期结果（clone 即可自测）⭐
+│   ├── README.md                   # 5 张合成图 + 图包夹具 + 预期结果（clone 即可自测）⭐
+│   ├── sample_prompt_pack.yaml     # 批量渲染夹具（layout / photo_required 跳过测试）
+│   ├── test_render.py              # mock API 一键自测（generations / edits / 跳过 / manifest）⭐
 │   └── *.png                       # ml_pass · amazon_fail · shopee_fix/fixed · ml_chaotic
 ├── prompts/ templates/ examples/   # 原有四件套
 ```
@@ -106,12 +137,22 @@ SOP 3.3 写了一句：
 **用法**：
 
 ```bash
+# 批量渲染（无 API 时自动降级为只输出 Prompt；layout / photo_required 自动跳过）
+python scripts/render_prompt_pack.py output_image_prompt_pack.yaml \
+  --reference product.png --platform shopee
+
+# 先看计划 / 只跑指定图位
+python scripts/render_prompt_pack.py output_image_prompt_pack.yaml --list
+python scripts/render_prompt_pack.py output_image_prompt_pack.yaml \
+  --reference product.png --platform shopee --only 1,2
+
 # 出图后必跑的合规校验（像素级，非"看一眼"）
 python scripts/check_main_image.py 出图.png --platform mercadolivre
 python scripts/check_main_image.py 出图.png --platform shopee --fix 修复后.png
 ```
 
 校验不过的图**不许交付**；`--fix` 能自动修的（白底不纯、留白过多、非正方形）会直接修好并复检。
+批量渲染的每个图位状态、输出路径与校验结果都记录在 `render_manifest.json`。
 
 ---
 
@@ -155,9 +196,11 @@ python scripts/check_main_image.py 出图.png --platform shopee --fix 修复后.
 
 | 限制 | 说明 |
 |---|---|
-| **不渲染图片** | 只产出 Prompt 与设计规格，实际出图用图像生成工具 |
+| **默认不强制渲染** | 仍可只产出 Prompt 与设计规格；v0.5 的渲染器是可选执行层，不配 API 也能完整交付 Prompt 包 |
+| **批量适配器读 YAML 需 PyYAML** | 也可把图包另存为 `.json`；渲染器本身纯标准库 |
+| **图像模型不保证 Logo / 文字 100% 准确** | 图内文字仍后期叠字；Logo / 屏幕数字需对照 Angle Sheet 人工复核 |
 | **9 图框架为推导版** | SOP 原始清单未提取到，已确认采用本仓库推导版本（见第二节）；未来若拿到原文可校准 |
-| **无法判断生成图是否合规** | 渲染后的品控需人工执行 C 段清单 |
+| **无法自动判断所有生成图是否合规** | 像素校验只覆盖尺寸/占比/背景/文件大小；认证、评价、场景越界仍需人工执行 C 段清单 |
 | **不生成认证标识** | 无认证的商品绝不出认证图，这是硬拦截 |
 | **真人出镜有约束** | AI 生成人物不得与真实可识别个人相似；不得用真实买家照片再生成 |
 | **平台规范会变** | 主图规则变更频繁，**发布前必须复核** |

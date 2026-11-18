@@ -1,0 +1,15 @@
+# Caddy 自动 HTTPS（推荐）
+# 用法：docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+console.example.com {
+    encode zstd gzip
+
+    # 只暴露同源前端与 API；健康检查可公开
+    reverse_proxy runtime:8000
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+}

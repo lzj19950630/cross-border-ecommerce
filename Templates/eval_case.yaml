@@ -1,0 +1,86 @@
+# 金标评测场景 · 标准模板
+# 用途：把真实案例变成固定输入 + rubric + 机械检查项，改 Prompt 后可回归。
+# 对齐底座：固定输入、LLM 不生成评测输入、run/score 解耦、0/1 + 理由。
+
+version: 1
+scenarios:
+  - id: "patinete-market-01"
+    surface: "01 市场分析"
+    input: "分析一下巴西站电动滑板车类目的市场机会"
+    rubric:
+      - "给出的价格带下界能由 market_metrics.py 复算"
+      - "配置机会与头部占据情况做了交叉判断"
+      - "所有结论区分了【数据】/【判断】/【待确认】"
+    deterministic_checks:
+      - "number_traceable"
+      - "required_sections"
+    note: "旗舰案例，锁定 01 的核心判断链"
+
+  - id: "powerbank-ads-01"
+    surface: "06 广告诊断"
+    input: "这组广告 ROAS 只有 1.2，帮我看看怎么调预算"
+    rubric:
+      - "先算盈亏线 ROAS/ACOS，再给动作"
+      - "动作按 P0/P1/P2 分级，且不包含暂停广告"
+      - "每个动作带 before/after/rollback，可进审批信封"
+    deterministic_checks:
+      - "number_traceable"
+      - "action_envelope_valid"
+      - "no_forbidden_action"
+    note: "锁定 06 的盈亏线与审批动作"
+
+  - id: "reviews-misunderstanding-01"
+    surface: "07 评论分析"
+    input: "这批差评里哪些是产品问题，哪些是买家误解？"
+    rubric:
+      - "八类归因合计等于差评数"
+      - "误解型与产品质量问题严格区分"
+      - "修补文案为 PT-BR 且可直接粘贴"
+    deterministic_checks:
+      - "attribution_sum"
+      - "required_sections"
+    note: "锁定 07 的归因与回流"
+
+  - id: "powerbank-pricing-01"
+    surface: "02 产品策略"
+    input: "这个产品成本 100，帮我算定价和盈亏线"
+    rubric:
+      - "SKU 净利率/盈亏价可复算"
+      - "主推款与引流款角色清晰"
+    deterministic_checks:
+      - "skus_nonempty"
+      - "evidence_present"
+    note: "覆盖 02 定价链路"
+
+  - id: "listing-title-01"
+    surface: "03 Listing"
+    input: "帮我写一个商品标题"
+    rubric:
+      - "标题符合 Shopee 字符限制"
+      - "标题参数可溯源"
+    deterministic_checks:
+      - "title_present"
+      - "evidence_present"
+    note: "覆盖 03 Listing 确定性校验"
+
+  - id: "image-plan-01"
+    surface: "04 商品图"
+    input: "帮我做主图"
+    rubric:
+      - "规划 9 个图位"
+      - "图片通过平台像素校验"
+    deterministic_checks:
+      - "image_plan_present"
+      - "evidence_present"
+    note: "覆盖 04 图片规划/像素校验"
+
+  - id: "video-timing-01"
+    surface: "05 视频"
+    input: "帮我做视频"
+    rubric:
+      - "配音时长在目标 ±15% 内"
+      - "字幕行长有校验"
+    deterministic_checks:
+      - "video_timing_ok"
+      - "evidence_present"
+    note: "覆盖 05 时长/字幕确定性校验"

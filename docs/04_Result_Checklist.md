@@ -57,7 +57,16 @@
 - [ ] 每张图都给出了**可直接使用的出图 Prompt**（英文/母语）
 - [ ] 每张图的**图内文案**标注了字数上限，且未超长
 - [ ] 图内标注的参数 = `spec_table`，逐字符一致
-- [ ] 每张图附**负面 Prompt**（negative prompt）
+- [ ] 每张图附**负面 Prompt**（negative prompt），且含 `must_not_change` 全部条目
+- [ ] **多图一致性**（v0.5）：
+  - [ ] 2 张以上图是否 100% 复用了同一段 `campaign_style_lock.style_lock_prompt`？
+  - [ ] 色板是否用 hex，光向/色温/背景体系是否一致？
+  - [ ] 如使用 Angle Sheet：一致性 Gate 是否通过，正式图是否只写了固定引用句？
+- [ ] **渲染**（v0.5，如使用通道 B）：
+  - [ ] `render_manifest.json` 中无 `error` 图位
+  - [ ] 批量适配器已跳过 `layout` / `photo_required` 图位
+  - [ ] `overlay_copy` 未被送进图像模型，图内文字已后期叠字
+  - [ ] 主图校验无 FAIL；`--fix` 产物已复检
 - [ ] 未生成伪造的认证标志 / 评价截图 / 销量角标
 - [ ] 平台冲突项已处理（ML 首图禁促销文字 vs Shopee 推荐叠字，输出两套方案）
 - [ ] 人物出镜图不与真实可识别个人相似

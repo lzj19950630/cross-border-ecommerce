@@ -1,0 +1,61 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: runtime
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-runtime}
+      POSTGRES_DB: runtime
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U runtime -d runtime"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  runtime:
+    build:
+      context: ..
+      dockerfile: cross-border-ecommerce-api/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - runtime-data:/data
+    environment:
+      RUNTIME_DB_URL: postgresql+psycopg://runtime:${POSTGRES_PASSWORD:-runtime}@db:5432/runtime
+      RUNTIME_CHECKPOINT_DSN: postgresql://runtime:${POSTGRES_PASSWORD:-runtime}@db:5432/runtime
+      RUNTIME_API_KEY: ${RUNTIME_API_KEY:-}
+      RUNTIME_API_KEYS: ${RUNTIME_API_KEYS:-}
+      RUNTIME_JWT_SECRET: ${RUNTIME_JWT_SECRET:-}
+      RUNTIME_USERS: ${RUNTIME_USERS:-}
+      RUNTIME_ACTION_ROLES: ${RUNTIME_ACTION_ROLES:-}
+      RUNTIME_CORS_ORIGINS: ${RUNTIME_CORS_ORIGINS:-}
+      RUNTIME_LLM_BASE_URL: ${RUNTIME_LLM_BASE_URL:-}
+      RUNTIME_LLM_MODEL: ${RUNTIME_LLM_MODEL:-}
+      RUNTIME_LLM_API_KEY: ${RUNTIME_LLM_API_KEY:-}
+      RUNTIME_APPLY_TOKEN: ${RUNTIME_APPLY_TOKEN:-}
+      RUNTIME_SECRET_KEY: ${RUNTIME_SECRET_KEY:-}
+      RUNTIME_PROXY_AUTH_SECRET: ${RUNTIME_PROXY_AUTH_SECRET:-}
+      RUNTIME_RATE_LIMIT: ${RUNTIME_RATE_LIMIT:-}
+    command:
+      - python
+      - -m
+      - runtime
+      - serve
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --checkpointer
+      - postgres
+      - --checkpoint-db
+      - postgresql://runtime:${POSTGRES_PASSWORD:-runtime}@db:5432/runtime
+    restart: unless-stopped
+
+volumes:
+  runtime-data:
+  pgdata:

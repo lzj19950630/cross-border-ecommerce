@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Ecommerce Runtime</title>
+<style>
+  :root { --bg:#0b1020; --panel:#141b32; --muted:#8a96b8; --text:#e8ecf8; --line:#26304f; --accent:#5b8cff; --ok:#35c48d; --warn:#f0b429; --bad:#ef6161; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); }
+  header { padding:20px 24px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; }
+  header h1 { margin:0; font-size:18px; letter-spacing:.3px; }
+  header span { color:var(--muted); font-size:12px; }
+  header input { width:200px; background:#0e1428; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font:inherit; }
+  main { display:grid; grid-template-columns: 360px 1fr; gap:16px; padding:16px; height:calc(100vh - 73px); }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; overflow:auto; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); margin:0 0 12px; }
+  textarea, input, select { width:100%; background:#0e1428; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:9px 10px; font:inherit; }
+  textarea { min-height:76px; resize:vertical; }
+  label { display:block; color:var(--muted); font-size:12px; margin:10px 0 4px; }
+  button { background:var(--accent); color:white; border:0; border-radius:8px; padding:9px 12px; font:inherit; cursor:pointer; }
+  button.secondary { background:#2a3558; }
+  button.danger { background:#7a2f3a; }
+  .row { display:flex; gap:8px; align-items:center; }
+  .task { padding:10px; border:1px solid var(--line); border-radius:10px; margin-bottom:8px; cursor:pointer; }
+  .task:hover { border-color:var(--accent); }
+  .task small { color:var(--muted); display:block; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; border:1px solid var(--line); }
+  .s-completed { color:var(--ok); } .s-interrupted { color:var(--warn); }
+  .s-failed,.s-blocked,.s-rejected { color:var(--bad); }
+  table { width:100%; border-collapse:collapse; margin:8px 0 18px; }
+  th,td { text-align:left; border-bottom:1px solid var(--line); padding:8px 6px; vertical-align:top; }
+  th { color:var(--muted); font-weight:500; font-size:12px; }
+  pre { background:#0e1428; border:1px solid var(--line); border-radius:8px; padding:10px; overflow:auto; max-height:260px; white-space:pre-wrap; }
+  svg.chart { width:100%; height:140px; background:#0e1428; border:1px solid var(--line); border-radius:8px; margin-bottom:12px; }
+  .metric-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:16px; }
+  .metric-card { background:#0e1428; border:1px solid var(--line); border-radius:10px; padding:10px; }
+  .metric-card b { font-size:22px; display:block; }
+  .bar-track { background:#0e1428; border-radius:999px; height:10px; overflow:hidden; margin:4px 0 10px; }
+  .bar-fill { height:100%; background:var(--accent); }
+  .envelope { border:1px solid var(--line); border-radius:10px; padding:10px; margin:8px 0; }
+  .muted { color:var(--muted); }
+  .error { color:var(--bad); white-space:pre-wrap; }
+  @media (max-width:900px) { main { grid-template-columns:1fr; height:auto; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>AI Ecommerce Runtime</h1>
+  <div class="row">
+    <input id="apiKey" placeholder="API Key（可选）" autocomplete="off">
+    <span id="health">connecting…</span>
+  </div>
+</header>
+<main>
+  <section class="panel">
+    <h2>登录（可选）</h2>
+    <label>用户名</label>
+    <input id="username" placeholder="alice" autocomplete="username">
+    <label>密码</label>
+    <input id="password" type="password" placeholder="••••••" autocomplete="current-password">
+    <div class="row" style="margin-top:12px">
+      <button class="secondary" id="login">登录</button>
+      <button class="secondary" id="logout">退出</button>
+    </div>
+    <h2 style="margin-top:22px">新建任务</h2>
+    <label>请求</label>
+    <textarea id="request">广告 ROAS 太低，怎么降预算</textarea>
+    <label>inputs JSON（可选）</label>
+    <textarea id="inputs">{}</textarea>
+    <label>创建后审批</label>
+    <select id="decision">
+      <option value="none">不自动审批</option>
+      <option value="approve">自动批准</option>
+      <option value="reject">自动拒绝</option>
+    </select>
+    <div class="row" style="margin-top:12px">
+      <button id="create">运行</button>
+      <button class="secondary" id="refresh">刷新列表</button>
+      <button class="secondary" id="eval">运行评测</button>
+      <button class="secondary" id="evalHistory">评测历史</button>
+      <button class="secondary" id="alerts">告警</button>
+      <button class="secondary" id="metrics">指标</button>
+      <button class="secondary" id="admin">系统管理</button>
+    </div>
+    <h2 style="margin-top:22px">任务</h2>
+    <select id="statusFilter" style="margin-bottom:10px">
+      <option value="">全部状态</option>
+      <option value="completed">completed</option>
+      <option value="interrupted">interrupted</option>
+      <option value="failed">failed</option>
+      <option value="blocked">blocked</option>
+      <option value="rejected">rejected</option>
+      <option value="clarify">clarify</option>
+    </select>
+    <div id="tasks"></div>
+  </section>
+  <section class="panel" id="detail">
+    <h2>任务详情</h2>
+    <p class="muted">从左侧选择一个任务，或运行一个新任务。</p>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+async function api(path, options = {}) {
+  const token = localStorage.getItem("runtime_token") || "";
+  const key = localStorage.getItem("runtime_api_key") || "";
+  const bearer = token || key;
+  const headers = { "Content-Type": "application/json", ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}) };
+  const response = await fetch(path, { headers, ...options });
+  const text = await response.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!response.ok) throw new Error(typeof data === "string" ? data : JSON.stringify(data));
+  return data;
+}
+function el(tag, text, cls) {
+  const node = document.createElement(tag);
+  if (text !== undefined && text !== null) node.textContent = String(text);
+  if (cls) node.className = cls;
+  return node;
+}
+async function loadHealth() {
+  try {
+    const data = await api("/api/health");
+    $("health").textContent = `v${data.version} · engine=${data.engine} · executor=${data.executor} · creative=${data.creative}`;
+  } catch (err) { $("health").textContent = `offline: ${err.message}`; }
+}
+async function loadTasks() {
+  const box = $("tasks");
+  let data;
+  try { data = await api("/api/tasks"); }
+  catch (err) { box.innerHTML = ""; box.appendChild(el("p", `加载失败：${err.message}`, "error")); return; }
+  box.innerHTML = "";
+  const filter = $("statusFilter").value;
+  const tasks = (data.tasks || []).filter((task) => !filter || task.status === filter);
+  for (const task of tasks) {
+    const item = el("div", null, "task");
+    item.onclick = () => showTask(task.thread_id);
+    const title = el("div", task.request);
+    const meta = el("small", `${task.status} · ${task.thread_id.slice(0, 12)}…`);
+    meta.className = `badge s-${task.status}`;
+    item.append(title, meta);
+    box.appendChild(item);
+  }
+  if (!tasks.length) box.appendChild(el("p", "没有匹配的任务。", "muted"));
+}
+async function showTask(id) {
+  const task = await api(`/api/tasks/${id}`);
+  const detail = $("detail"); detail.innerHTML = "";
+  detail.appendChild(el("h2", `任务 ${id.slice(0, 16)}…`));
+  detail.appendChild(el("p", `状态：${task.status}`, `badge s-${task.status}`));
+  if (task.delivery_status) {
+    detail.appendChild(el("p", `交付：${task.delivery_status}`, "muted"));
+  }
+  detail.appendChild(el("p", task.request, "muted"));
+  if (task.error) detail.appendChild(el("p", task.error, "error"));
+
+  const table = el("table");
+  table.innerHTML = "<thead><tr><th>#</th><th>Agent</th><th>状态</th><th>耗时</th><th>证据</th><th>信封</th></tr></thead>";
+  const tbody = el("tbody");
+  for (const slice of task.slices || []) {
+    const tr = el("tr");
+    for (const value of [slice.no, slice.agent, slice.status, `${slice.elapsed_ms ?? 0}ms`, slice.evidence_items, slice.envelope_id || "-"]) {
+      tr.appendChild(el("td", value));
+    }
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody); detail.appendChild(table);
+
+  detail.appendChild(el("h2", "审批信封"));
+  const envelopeIds = Object.keys(task.envelopes || {});
+  if (!envelopeIds.length) detail.appendChild(el("p", "无", "muted"));
+  for (const envelopeId of envelopeIds) {
+    const envelope = task.envelopes[envelopeId];
+    const box = el("div", null, "envelope");
+    box.appendChild(el("div", `${envelopeId} · ${envelope.decision} · risk=${envelope.risk}`));
+    box.appendChild(el("pre", JSON.stringify(envelope.actions, null, 2)));
+    if (envelope.decision === "pending") {
+      const row = el("div", null, "row");
+      const approve = el("button", "批准"); approve.onclick = () => decide(id, "approve");
+      const reject = el("button", "拒绝", "danger"); reject.onclick = () => decide(id, "reject");
+      row.append(approve, reject); box.appendChild(row);
+    }
+    detail.appendChild(box);
+  }
+
+  detail.appendChild(el("h2", "产物"));
+  detail.appendChild(el("pre", JSON.stringify(task.artifacts || {}, null, 2)));
+  detail.appendChild(el("h2", "证据"));
+  const evidenceBox = el("div");
+  for (const [agent, block] of Object.entries(task.evidence || {})) {
+    evidenceBox.appendChild(el("div", agent, "muted"));
+    for (const item of (block.items || [])) {
+      const card = el("div", null, "envelope");
+      card.appendChild(el("div", `[${item.claim_id}] ${item.claim}`));
+      card.appendChild(el("div", `${item.evidence_type} · ${item.source} · ${item.locator}`, "muted"));
+      evidenceBox.appendChild(card);
+    }
+  }
+  const raw = el("details");
+  raw.appendChild(el("summary", "原始证据 JSON"));
+  raw.appendChild(el("pre", JSON.stringify(task.evidence || {}, null, 2)));
+  evidenceBox.appendChild(raw);
+  detail.appendChild(evidenceBox);
+
+  const actionRow = el("div", null, "row");
+  if (task.status === "completed" && ["not_reviewed", "failed"].includes(task.delivery_status || "not_reviewed")) {
+    const reviewButton = el("button", "机器审核", "secondary");
+    reviewButton.onclick = () => deliveryReview(id);
+    actionRow.appendChild(reviewButton);
+  }
+  if (task.delivery_status === "pending") {
+    const approve = el("button", "通过交付");
+    approve.onclick = () => deliveryDecision(id, "approve");
+    const reject = el("button", "拒绝交付", "danger");
+    reject.onclick = () => deliveryDecision(id, "reject");
+    actionRow.append(approve, reject);
+  }
+  if (task.delivery_status === "passed") {
+    const zip = el("button", "下载 ZIP");
+    zip.onclick = () => downloadArchive(id);
+    actionRow.appendChild(zip);
+  }
+  if (["created", "running", "interrupted"].includes(task.status)) {
+    const cancelButton = el("button", "取消任务", "danger");
+    cancelButton.onclick = () => cancelTask(id);
+    actionRow.appendChild(cancelButton);
+  }
+  const auditButton = el("button", "查看审计", "secondary");
+  auditButton.onclick = async () => {
+    const data = await api(`/api/audits/${id}`);
+    detail.appendChild(el("pre", JSON.stringify(data.audits, null, 2)));
+  };
+  const exportButton = el("button", "导出 JSON", "secondary");
+  exportButton.onclick = () => downloadTask(id);
+  actionRow.append(auditButton, exportButton);
+  detail.appendChild(actionRow);
+}
+function showEval(report) {
+  const detail = $("detail"); detail.innerHTML = "";
+  detail.appendChild(el("h2", "评测结果"));
+  detail.appendChild(el("p", `ok=${report.ok} · passed=${report.passed} · failed=${report.failed}`));
+  for (const item of report.cases || []) {
+    const box = el("div", null, "envelope");
+    box.appendChild(el("div", `${item.id} · ${item.surface} · ${item.status} · ${item.passed ? "PASS" : "FAIL"}`));
+    box.appendChild(el("pre", JSON.stringify(item.checks, null, 2)));
+    detail.appendChild(box);
+  }
+}
+async function runEval() {
+  try { showEval(await api("/api/evals", { method: "POST" })); }
+  catch (err) { alert(err.message); }
+}
+function renderEvalChart(runs) {
+  if (!runs || !runs.length) return null;
+  const data = runs.slice().reverse();
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("class", "chart");
+  svg.setAttribute("viewBox", "0 0 600 140");
+  const pad = 18, width = 564, height = 104;
+  for (const rate of [0, 0.5, 1]) {
+    const y = pad + (1 - rate) * height;
+    const line = document.createElementNS(ns, "line");
+    line.setAttribute("x1", pad); line.setAttribute("x2", pad + width);
+    line.setAttribute("y1", y); line.setAttribute("y2", y);
+    line.setAttribute("stroke", "#26304f"); line.setAttribute("stroke-dasharray", "4 4");
+    svg.appendChild(line);
+  }
+  const points = data.map((run, index) => {
+    const total = (run.passed || 0) + (run.failed || 0);
+    const rate = total ? run.passed / total : 0;
+    const x = data.length === 1 ? pad + width / 2 : pad + index * width / (data.length - 1);
+    const y = pad + (1 - rate) * height;
+    return { x, y, rate, run };
+  });
+  const poly = document.createElementNS(ns, "polyline");
+  poly.setAttribute("points", points.map(p => `${p.x},${p.y}`).join(" "));
+  poly.setAttribute("fill", "none"); poly.setAttribute("stroke", "#5b8cff"); poly.setAttribute("stroke-width", "2");
+  svg.appendChild(poly);
+  for (const p of points) {
+    const circle = document.createElementNS(ns, "circle");
+    circle.setAttribute("cx", p.x); circle.setAttribute("cy", p.y); circle.setAttribute("r", "3.5");
+    circle.setAttribute("fill", p.run.ok ? "#35c48d" : "#ef6161");
+    const title = document.createElementNS(ns, "title");
+    title.textContent = `${p.run.created_at || ""} · pass ${(p.rate * 100).toFixed(0)}%`;
+    circle.appendChild(title); svg.appendChild(circle);
+  }
+  return svg;
+}
+async function deliveryReview(id) {
+  try { await api(`/api/tasks/${id}/delivery/review`, { method: "POST" }); await showTask(id); }
+  catch (err) { alert(err.message); }
+}
+async function deliveryDecision(id, decision) {
+  try {
+    await api(`/api/tasks/${id}/delivery/decision`, {
+      method: "POST", body: JSON.stringify({ decision }),
+    });
+    await showTask(id); await loadTasks();
+  } catch (err) { alert(err.message); }
+}
+async function downloadArchive(id) {
+  const token = localStorage.getItem("runtime_token") || "";
+  const key = localStorage.getItem("runtime_api_key") || "";
+  const bearer = token || key;
+  const response = await fetch(`/api/tasks/${id}/archive`, {
+    headers: bearer ? { Authorization: `Bearer ${bearer}` } : {},
+  });
+  if (!response.ok) { alert(await response.text()); return; }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url; link.download = `task-${id}.zip`; link.click();
+  URL.revokeObjectURL(url);
+}
+async function cancelTask(id) {
+  if (!confirm("确认取消这个任务？")) return;
+  try {
+    await api(`/api/tasks/${id}/cancel`, { method: "POST" });
+    await showTask(id); await loadTasks();
+  } catch (err) { alert(err.message); }
+}
+async function downloadTask(id) {
+  const token = localStorage.getItem("runtime_token") || "";
+  const key = localStorage.getItem("runtime_api_key") || "";
+  const bearer = token || key;
+  const response = await fetch(`/api/tasks/${id}/export`, {
+    headers: bearer ? { Authorization: `Bearer ${bearer}` } : {},
+  });
+  if (!response.ok) { alert(await response.text()); return; }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url; link.download = `task-${id}.json`; link.click();
+  URL.revokeObjectURL(url);
+}
+
+function formField(labelText, id, type = "text", placeholder = "") {
+  const wrap = el("div");
+  wrap.appendChild(el("label", labelText));
+  const input = document.createElement("input");
+  input.id = id; input.type = type; input.placeholder = placeholder;
+  wrap.appendChild(input);
+  return wrap;
+}
+function actionButton(label, handler, cls = "") {
+  const button = el("button", label, cls);
+  button.onclick = handler;
+  return button;
+}
+async function loadAdmin() {
+  const detail = $("detail"); detail.innerHTML = "";
+  detail.appendChild(el("h2", "系统管理"));
+  detail.appendChild(el("p", `当前：${localStorage.getItem("runtime_name") || "未登录"} · ${localStorage.getItem("runtime_role") || "-"} · ${localStorage.getItem("runtime_tenant") || "全局"}`, "muted"));
+
+  const tenantBox = el("div", null, "envelope");
+  tenantBox.appendChild(el("h3", "租户"));
+  const tenantMsg = el("pre", "");
+  tenantBox.append(
+    formField("租户 ID", "tenantId", "text", "acme"),
+    formField("租户名", "tenantName", "text", "Acme Store"),
+    actionButton("创建租户", async () => {
+      try {
+        await api("/api/tenants", { method: "POST", body: JSON.stringify({
+          id: $("tenantId").value, name: $("tenantName").value,
+        })});
+        await loadTenants(tenantMsg);
+      } catch (err) { tenantMsg.textContent = err.message; }
+    }),
+    actionButton("刷新租户", () => loadTenants(tenantMsg), "secondary"),
+    tenantMsg,
+  );
+  detail.appendChild(tenantBox);
+
+  const userBox = el("div", null, "envelope");
+  userBox.appendChild(el("h3", "用户"));
+  const userMsg = el("pre", "");
+  const defaultTenant = localStorage.getItem("runtime_tenant") || "";
+  userBox.append(
+    formField("租户 ID", "userTenant", "text", defaultTenant || "acme"),
+    formField("用户名", "userName", "text", "bob"),
+    formField("密码", "userPassword", "password", "••••••"),
+    formField("角色（admin/operator/viewer）", "userRole", "text", "operator"),
+    actionButton("创建用户", async () => {
+      try {
+        await api("/api/users", { method: "POST", body: JSON.stringify({
+          tenant_id: $("userTenant").value, username: $("userName").value,
+          password: $("userPassword").value, role: $("userRole").value,
+        })});
+        await loadUsers(userMsg);
+      } catch (err) { userMsg.textContent = err.message; }
+    }),
+    actionButton("刷新用户", () => loadUsers(userMsg), "secondary"),
+    userMsg,
+  );
+  detail.appendChild(userBox);
+
+  const providerBox = el("div", null, "envelope");
+  providerBox.appendChild(el("h3", "模型配置"));
+  const providerMsg = el("pre", "");
+  providerBox.append(
+    formField("配置名", "providerName", "text", "default"),
+    formField("Base URL", "providerBaseUrl", "text", "https://api.openai.com/v1"),
+    formField("模型", "providerModel", "text", "gpt-4.1-mini"),
+    formField("API Key", "providerKey", "password", "sk-..."),
+    actionButton("保存配置", async () => {
+      try {
+        await api(`/api/providers/${$("providerName").value}`, { method: "PUT", body: JSON.stringify({
+          base_url: $("providerBaseUrl").value,
+          model: $("providerModel").value,
+          api_key: $("providerKey").value,
+        })});
+        await loadProviders(providerMsg);
+      } catch (err) { providerMsg.textContent = err.message; }
+    }),
+    actionButton("测试连接", async () => {
+      try {
+        providerMsg.textContent = JSON.stringify(
+          await api(`/api/providers/${$("providerName").value}/test`, { method: "POST" }), null, 2
+        );
+      } catch (err) { providerMsg.textContent = err.message; }
+    }, "secondary"),
+    actionButton("刷新配置", () => loadProviders(providerMsg), "secondary"),
+    providerMsg,
+  );
+  detail.appendChild(providerBox);
+  await loadTenants(tenantMsg);
+  await loadUsers(userMsg);
+  await loadProviders(providerMsg);
+}
+async function loadTenants(target) {
+  try { target.textContent = JSON.stringify((await api("/api/tenants")).tenants, null, 2); }
+  catch (err) { target.textContent = err.message; }
+}
+async function loadUsers(target) {
+  try { target.textContent = JSON.stringify((await api("/api/users")).users, null, 2); }
+  catch (err) { target.textContent = err.message; }
+}
+async function loadProviders(target) {
+  try { target.textContent = JSON.stringify((await api("/api/providers")).providers, null, 2); }
+  catch (err) { target.textContent = err.message; }
+}
+
+async function loadAlerts() {
+  try {
+    const data = await api("/api/alerts");
+    const detail = $("detail"); detail.innerHTML = "";
+    detail.appendChild(el("h2", "告警"));
+    if (!data.alerts.length) detail.appendChild(el("p", "没有告警。", "muted"));
+    for (const item of data.alerts) {
+      const box = el("div", null, "envelope");
+      box.appendChild(el("div", `[${item.level}] ${item.kind} · ${item.thread_id}`));
+      box.appendChild(el("div", item.message, "muted"));
+      detail.appendChild(box);
+    }
+  } catch (err) { alert(err.message); }
+}
+async function loadMetrics() {
+  try {
+    const data = await api("/api/metrics");
+    const detail = $("detail"); detail.innerHTML = "";
+    detail.appendChild(el("h2", "指标"));
+    const cards = el("div", null, "metric-grid");
+    const items = [
+      ["任务总数", data.tasks_total],
+      ["待审批", data.pending_approvals],
+      ["评测次数", data.eval_runs],
+      ["失败/阻塞", (data.tasks_by_status.failed || 0) + (data.tasks_by_status.blocked || 0)],
+    ];
+    for (const [label, value] of items) {
+      const card = el("div", null, "metric-card");
+      card.appendChild(el("div", label, "muted"));
+      card.appendChild(el("b", value));
+      cards.appendChild(card);
+    }
+    detail.appendChild(cards);
+    detail.appendChild(el("h2", "任务状态分布"));
+    const entries = Object.entries(data.tasks_by_status || {});
+    const max = Math.max(1, ...entries.map(([, count]) => count));
+    for (const [status, count] of entries) {
+      detail.appendChild(el("div", `${status} · ${count}`));
+      const track = el("div", null, "bar-track");
+      const fill = el("div", null, "bar-fill");
+      fill.style.width = `${Math.max(4, (count / max) * 100)}%`;
+      track.appendChild(fill); detail.appendChild(track);
+    }
+    const alerts = await api("/api/alerts");
+    detail.appendChild(el("h2", `告警（${alerts.alerts.length}）`));
+    if (!alerts.alerts.length) detail.appendChild(el("p", "没有告警。", "muted"));
+    for (const item of alerts.alerts.slice(0, 5)) {
+      detail.appendChild(el("div", `[${item.level}] ${item.kind} · ${item.thread_id}`, "muted"));
+    }
+  } catch (err) { alert(err.message); }
+}
+async function loadEvalHistory() {
+  try {
+    const data = await api("/api/evals");
+    const detail = $("detail"); detail.innerHTML = "";
+    detail.appendChild(el("h2", "评测历史"));
+    const chart = renderEvalChart(data.runs);
+    if (chart) detail.appendChild(chart);
+    if (!data.runs.length) detail.appendChild(el("p", "还没有评测记录。", "muted"));
+    for (const run of data.runs) {
+      const box = el("div", null, "envelope");
+      box.appendChild(el("div", `${run.created_at || ""} · ok=${run.ok} · passed=${run.passed} · failed=${run.failed}`));
+      const button = el("button", "查看", "secondary");
+      button.onclick = () => showEval(run);
+      box.appendChild(button);
+      detail.appendChild(box);
+    }
+  } catch (err) { alert(err.message); }
+}
+async function decide(id, decision) {
+  try {
+    await api(`/api/tasks/${id}/resume`, { method: "POST", body: JSON.stringify({ decision }) });
+    await showTask(id); await loadTasks();
+  } catch (err) { alert(err.message); }
+}
+async function login() {
+  try {
+    const data = await api("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        username: $("username").value,
+        password: $("password").value,
+      }),
+    });
+    localStorage.setItem("runtime_token", data.token);
+    localStorage.setItem("runtime_name", data.name || "");
+    localStorage.setItem("runtime_role", data.role || "");
+    localStorage.setItem("runtime_tenant", data.tenant || "");
+    await loadTasks();
+    alert(`已登录：${data.name}（${data.role}）`);
+  } catch (err) { alert(err.message); }
+}
+async function createTask() {
+  let inputs = {};
+  try { inputs = JSON.parse($("inputs").value || "{}"); } catch { alert("inputs 不是有效 JSON"); return; }
+  try {
+    const task = await api("/api/tasks", {
+      method: "POST",
+      body: JSON.stringify({ request: $("request").value, inputs, decision: $("decision").value }),
+    });
+    await loadTasks(); await showTask(task.thread_id);
+  } catch (err) { alert(err.message); }
+}
+const apiKeyInput = $("apiKey");
+apiKeyInput.value = localStorage.getItem("runtime_api_key") || "";
+apiKeyInput.onchange = () => {
+  localStorage.setItem("runtime_api_key", apiKeyInput.value.trim());
+  loadTasks();
+};
+$("login").onclick = login;
+$("logout").onclick = async () => {
+  try { await api("/api/auth/logout", { method: "POST" }); } catch (err) {}
+  localStorage.removeItem("runtime_token");
+  localStorage.removeItem("runtime_name");
+  localStorage.removeItem("runtime_role");
+  localStorage.removeItem("runtime_tenant");
+  loadTasks();
+};
+$("create").onclick = createTask;
+$("refresh").onclick = loadTasks;
+$("eval").onclick = runEval;
+$("evalHistory").onclick = loadEvalHistory;
+$("alerts").onclick = loadAlerts;
+$("metrics").onclick = loadMetrics;
+$("admin").onclick = loadAdmin;
+$("statusFilter").onchange = loadTasks;
+loadHealth(); loadTasks();
+</script>
+</body>
+</html>

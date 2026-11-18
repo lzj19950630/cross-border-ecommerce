@@ -8,8 +8,35 @@ meta:
   target_market: ""
   mode: ""                     # standard | variant | iterate
   generated_at: ""             # YYYY-MM-DD
-  prompt_version: "04-Product-Image v0.1"
+  prompt_version: "04-Product-Image v0.5"
   upstream: "03-Listing-Creative"   # 上游模块，必须为 03
+
+# ─────────────────────────────────────────────
+# 0. 多图一致性 + 产品身份基准（v0.5 新增）
+# ─────────────────────────────────────────────
+
+# 规则卡：references/style-lock.md
+campaign_style_lock:
+  enabled: true
+  visual_direction: ""
+  palette: []                  # 2–3 主色 + 1 点缀色，用 hex
+  temperature: ""              # warm | neutral | cool
+  lighting: ""
+  background_system: ""
+  layout_system: ""
+  icon_system: ""
+  product_presentation: ""
+  must_not_change: []          # 从产品身份锁定继承，逐条进否定清单
+  text_policy: "图内文字后期叠字，不进出图 Prompt（PT-BR 变音符号极易出错）"
+  style_lock_prompt: ""        # ← 英文；每条图 Prompt 第一段原样复用
+
+# 规则卡：references/product-angle-sheet.md
+angle_sheet:
+  needed: false                # 只有 1 张产品照且出 3 张以上正式图时建议 true
+  reference_image: ""          # 产品实拍参考图路径
+  prompt: ""                   # Angle Sheet Prompt（英文，见规则卡模板）
+  consistency_gate: ""         # 形状/颜色/Logo/接口/包装是否通过
+  approved_angle_sheet: ""     # 通过 Gate 的基准图路径；正式图以它为参考
 
 # ─────────────────────────────────────────────
 # 1. 9 图内容规划
@@ -107,11 +134,14 @@ platform_variant:
 
 # ─────────────────────────────────────────────
 # 3. 出图 Prompt
+#    组装顺序：Campaign Style Lock → Angle Sheet 引用句 → 本图目的/构图
+#              → 光影/背景 → 平台参数 → 否定清单（含 must_not_change）
 # ─────────────────────────────────────────────
 prompts:
   - slot: 1
     role: "主图"
-    prompt: ""                 # 含七槽位：SUBJECT / MATERIAL / COMPOSITION / LIGHTING / BACKGROUND / STYLE / PARAMETERS
+    asset_type: "main"
+    prompt: ""                 # 第一段必须原样复用 campaign_style_lock.style_lock_prompt
     negative_prompt: ""
     aspect_ratio: "1:1"
     recommended_size: "1024x1024"
@@ -119,6 +149,7 @@ prompts:
 
   - slot: 2
     role: "核心卖点图"
+    asset_type: "main"
     prompt: ""
     negative_prompt: ""
     aspect_ratio: "1:1"
@@ -139,6 +170,7 @@ prompts:
 
   - slot: 4
     role: "使用场景图 A"
+    asset_type: "detail"
     prompt: ""
     negative_prompt: ""
     aspect_ratio: "1:1"
@@ -147,6 +179,7 @@ prompts:
 
   - slot: 5
     role: "使用场景图 B"
+    asset_type: "detail"
     prompt: ""
     negative_prompt: ""
     aspect_ratio: "1:1"
@@ -155,6 +188,7 @@ prompts:
 
   - slot: 6
     role: "细节特写图"
+    asset_type: "detail"
     prompt: ""
     negative_prompt: ""
     aspect_ratio: "1:1"
@@ -199,6 +233,20 @@ overlay_copy:
     font_size_hint: "主文案高度 ≥ 图高 4%"
   # ... 逐图
 overlay_note: "图内文字由设计工具后期叠字，不用图像模型渲染（葡语变音符号极易出错）"
+
+# ─────────────────────────────────────────────
+# 4.5 渲染配置（v0.5 新增，可选）
+#     脚本：scripts/render_prompt_pack.py
+# ─────────────────────────────────────────────
+render:
+  mode: ""                     # auto | prompt | image（auto：无 API 配置时只输出 Prompt）
+  platform: ""                 # 覆盖 meta.platform；留空用 meta
+  reference_image: ""          # 产品参考图；有 Logo/屏幕文字/特殊接口时必填
+  job_dir: ""                  # 留空 = generated-images/<slug>-pack-<yyyymmdd-hhmmss>
+  size_override: ""            # 如 1200x1200；留空用各图 recommended_size
+  check_main_image: true       # 出图后跑 check_main_image.py 校验 slot 1
+  check_all: false             # 是否校验全部 1:1 图（场景图会被主图标准误判）
+  notes: "layout / photo_required 图位不会被渲染；overlay_copy 不会送进图像模型"
 
 # ─────────────────────────────────────────────
 # 5. 图片合规扫描

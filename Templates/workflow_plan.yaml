@@ -1,0 +1,45 @@
+# 任务切片计划 · 标准模板
+# 用途：复杂请求先拆成 ≤7 个切片；每片一个 Agent；依赖声明；写动作必须有审批点。
+# 校验：python -m runtime plan "<用户请求>"（生成参考计划）
+# 规则：编号唯一；依赖必须存在且无环；审批点不得为空（requires_approval 的 Agent）
+
+slices:
+  - "no": 1
+    agent: "market_research"
+    description: "分析巴西站电动滑板车类目：容量、集中度、价格带、配置机会"
+    depends_on: []
+    approval_points: []          # 只读，无审批
+
+  - "no": 2
+    agent: "product_strategy"
+    description: "基于切片 1 定价、收敛唯一主卖点、给出 SKU 四角色"
+    depends_on: [1]
+    approval_points:
+      - "确认主推价与优惠券额度"
+
+  - "no": 3
+    agent: "listing_creative"
+    description: "基于切片 2 的主卖点写标题/详情页，过字符与参数一致性校验"
+    depends_on: [2]
+    approval_points:
+      - "审批标题与详情页变更"
+
+  - "no": 4
+    agent: "product_image"
+    description: "基于切片 3 规划 9 图 + 风格锁 + 出图 Prompt"
+    depends_on: [3]
+    approval_points:
+      - "审批主图更换"
+
+  - "no": 5
+    agent: "product_video"
+    description: "基于切片 3 出 15s/30s 脚本、分镜、配音字幕"
+    depends_on: [3]
+    approval_points: []          # 只出草稿；发布另走审批
+
+  - "no": 6
+    agent: "advertising"
+    description: "基于切片 2/3 算盈亏线、诊断广告、输出 P0/P1/P2 动作"
+    depends_on: [2, 3]
+    approval_points:
+      - "审批预算/出价调整"
