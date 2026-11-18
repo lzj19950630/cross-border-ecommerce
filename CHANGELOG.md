@@ -4,6 +4,17 @@
 
 ---
 
+## [v0.30.1] — 2026-11-18
+
+### fix · SQLiteStore 跨线程访问
+
+- FastAPI 同步端点运行在 anyio 线程池，`SQLiteStore` 连接默认 `check_same_thread=True`，导致启动服务后 `/api/tasks` 等接口报 `sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread`；
+- 连接改为 `check_same_thread=False`，并用 `RLock` 串行化 execute/commit，补充 `busy_timeout=30s`；
+- 新增 2 个线程回归测试（直接跨线程 + TestClient 走 API）；
+- 测试：**222 个**（2 个 Postgres 集成在无 env 时 skip）。
+
+---
+
 ## [v0.30] — 2026-11-18
 
 ### Phase 8c · Agent 管理 + 全链路追踪

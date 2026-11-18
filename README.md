@@ -416,7 +416,8 @@ AI-Cross-Border-Ecommerce-Agent-Toolkit/
 | **v0.27** | **Phase 7b 交付/幂等/租户**：交付审核 + ZIP + API 幂等 + 租户隔离 + 200 个测试 |
 | **v0.28** | **Phase 8a 租户模型/加密**：租户级 provider 配置 + Key 加密 + 204 个测试 |
 | **v0.29** | **Phase 8b 目录重构/系统管理**：API/Admin 目录拆分 + 租户/用户/模型管理页 + 206 个测试 |
-| **v0.30** | **Phase 8c Agent/追踪**：Agent 管理页 + 全链路追踪 + Checkpoint 历史 + 220 个测试（当前） |
+| **v0.30** | **Phase 8c Agent/追踪**：Agent 管理页 + 全链路追踪 + Checkpoint 历史 + 220 个测试 |
+| **v0.30.1** | **fix SQLite 跨线程**：API 线程池访问修复 + 222 个测试（当前） |
 | **v1.0** | 打通完整工作流，输出一键上架用的素材包 |
 | V2 | 接入平台 API（Shopee / Mercado Livre）自动拉取数据 |
 | V3 | 网页应用，可视化跑工作流 |

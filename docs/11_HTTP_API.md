@@ -203,7 +203,7 @@ curl http://127.0.0.1:8000/api/health
 ```
 
 ```json
-{"status":"ok","version":"0.30.0","engine":"supervisor","executor":"sequential","creative":false,"auth":true,"proxy_auth":false,"rate_limit":120,"cors":false}
+{"status":"ok","version":"0.30.1","engine":"supervisor","executor":"sequential","creative":false,"auth":true,"proxy_auth":false,"rate_limit":120,"cors":false}
 ```
 
 ### 创建一个 01 市场分析任务

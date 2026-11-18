@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -362,15 +363,48 @@ class InMemoryStore:
         self.users.clear()
 
 
+class _LockedConnection:
+    """把单个 sqlite3 连接的操作串行化，供 FastAPI 线程池共享。
+
+    sqlite3 默认 check_same_thread=True，连接不能在创建线程之外使用；
+    API 的同步端点跑在 anyio 线程池里，因此必须关闭该检查并自己加锁。
+    """
+
+    def __init__(self, conn: sqlite3.Connection, lock: Any) -> None:
+        self._conn = conn
+        self._lock = lock
+
+    def execute(self, *args: Any, **kwargs: Any):
+        with self._lock:
+            return self._conn.execute(*args, **kwargs)
+
+    def executescript(self, *args: Any, **kwargs: Any):
+        with self._lock:
+            return self._conn.executescript(*args, **kwargs)
+
+    def commit(self) -> None:
+        with self._lock:
+            self._conn.commit()
+
+    def close(self) -> None:
+        with self._lock:
+            self._conn.close()
+
+
 class SQLiteStore:
     """Phase 3b：stdlib sqlite3 持久化，CLI 可跨进程 run → resume。"""
 
     def __init__(self, path: str | Path = ".runtime/runtime.db") -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(self.path))
-        self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._lock = threading.RLock()
+        conn = sqlite3.connect(
+            str(self.path), check_same_thread=False, timeout=30
+        )
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=30000")
+        self._conn = _LockedConnection(conn, self._lock)
         self._init_schema()
 
     def _init_schema(self) -> None:
