@@ -90,6 +90,9 @@ class ApiTest(unittest.TestCase):
         self.assertIn("系统管理", response.text)
         self.assertIn("创建租户", response.text)
         self.assertIn("模型配置", response.text)
+        self.assertIn("Agent 管理", response.text)
+        self.assertIn("全链路追踪", response.text)
+        self.assertIn("Checkpoint", response.text)
         self.assertEqual(self.client.get("/static/index.html").status_code, 200)
 
     def test_eval_endpoint(self):

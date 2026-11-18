@@ -1,7 +1,7 @@
 # 11 · Runtime HTTP API
 
 > 启动一个最小 FastAPI 服务，把 7 Agent 编排暴露成 HTTP。
-> 适用版本：v0.29。
+> 适用版本：v0.30。
 
 ---
 
@@ -54,7 +54,9 @@ python -m runtime serve --executor sequential   # 纯顺序
 - 切片状态、审批信封（批准/拒绝）；
 - 产物 / 证据 JSON；
 - 审计查询；
-- **运行评测**按钮（显示 pass/fail 与每条机械判据）。
+- **运行评测**按钮（显示 pass/fail 与每条机械判据）；
+- Agent 管理：`SKILL.md` / `prompts/` / `references/` / `templates/` 在线查看/编辑（保存需 admin，自动备份）；
+- 任务详情：全链路追踪（切片时间轴）、Checkpoint 历史快照。
 
 静态页面在 `cross-border-ecommerce-admin/index.html`，**零构建、同源托管**，无认证/CORS（仅本地原型）。
 
@@ -158,6 +160,8 @@ export RUNTIME_CORS_ORIGINS=https://console.example.com
 | GET | `/api/tasks/{id}` | 任务详情 |
 | GET | `/api/tasks/{id}/approvals` | 待审批信封 |
 | POST | `/api/tasks/{id}/resume` | 批准/拒绝 |
+| GET | `/api/tasks/{id}/trace` | 全链路事件时间轴 |
+| GET | `/api/tasks/{id}/checkpoints` | LangGraph checkpoint 历史 |
 | GET | `/api/audits/{id}` | 审批审计 |
 | GET | `/api/metrics` | JSON 指标 |
 | GET | `/metrics` | Prometheus 文本指标 |
@@ -173,6 +177,11 @@ export RUNTIME_CORS_ORIGINS=https://console.example.com
 | PUT | `/api/providers/{name}` | 保存租户模型配置（admin） |
 | DELETE | `/api/providers/{name}` | 删除租户模型配置（admin） |
 | POST | `/api/providers/{name}/test` | 测试模型连接（真实调用） |
+| GET | `/api/agents` | Agent 能力卡 + 文件清单 |
+| GET | `/api/agents/{key}` | 单 Agent 详情 |
+| GET | `/api/agents/{key}/file` | 读取白名单文件 |
+| PUT | `/api/agents/{key}/file` | 编辑文件（admin，自动备份） |
+| GET | `/api/agents/edits` | Agent 编辑日志（admin） |
 | GET | `/api/tasks/{id}/export` | 导出 task + audits JSON |
 | POST | `/api/tasks/{id}/cancel` | 取消任务（清空待审批） |
 | POST | `/api/tasks/{id}/delivery/review` | 机器交付审核 |
@@ -194,7 +203,7 @@ curl http://127.0.0.1:8000/api/health
 ```
 
 ```json
-{"status":"ok","version":"0.29.0","engine":"supervisor","executor":"sequential","creative":false,"auth":true,"proxy_auth":false,"rate_limit":120,"cors":false}
+{"status":"ok","version":"0.30.0","engine":"supervisor","executor":"sequential","creative":false,"auth":true,"proxy_auth":false,"rate_limit":120,"cors":false}
 ```
 
 ### 创建一个 01 市场分析任务
@@ -286,7 +295,52 @@ curl -X POST http://127.0.0.1:8000/api/tasks \
 
 ---
 
-## 七、边界
+## 七、Agent 管理与追踪
+
+### Agent / Skill / Prompt
+
+```bash
+# 列出 7 个 Agent（能力卡 + 文件清单）
+curl http://127.0.0.1:8000/api/agents
+
+# 读取
+curl 'http://127.0.0.1:8000/api/agents/product_image/file?path=prompts/00_system.md'
+
+# 保存（admin；自动备份到 .runtime/agent_backups/）
+curl -X PUT http://127.0.0.1:8000/api/agents/product_image/file \
+  -H 'Content-Type: application/json' \
+  -d '{"path":"prompts/00_system.md","content":"..."}'
+
+# 编辑日志
+curl http://127.0.0.1:8000/api/agents/edits
+```
+
+- 可访问：`SKILL.md` / `README.md`，以及 `prompts/`、`references/`、`templates/` 下的 `.md/.yaml/.yml/.json/.txt`；
+- 仅允许覆盖已存在文件；读 512KB / 写 256KB；路径白名单 + 防穿越；
+- 写接口仅 `admin`；未启用认证时视为本地管理员。
+
+### 全链路追踪
+
+```bash
+curl http://127.0.0.1:8000/api/tasks/<thread_id>/trace
+```
+
+返回 `events`（route / plan / slice / audit 按时间排序）+ `slices`、`messages`、`audits` 原始结构。
+
+### Checkpoint 历史
+
+```bash
+curl http://127.0.0.1:8000/api/tasks/<thread_id>/checkpoints
+```
+
+- 只读 `.runtime/checkpoints.db`（`SqliteSaver.list()`）；
+- 每个快照含 `checkpoint_id / step / source / ts / state / has_interrupt`；
+- `available=false` 表示未启用 sqlite checkpointer 或 DB 不存在；
+- 历史快照当前仅查看，不支持回滚；续跑走审批 / `resume`。
+
+---
+
+## 八、边界
 
 - **认证**：支持 API Key 与 JWT（admin/operator/viewer）；无 SSO/刷新 token/密码重置；
 - **无 CORS 配置**：浏览器跨域需自行加 middleware；
@@ -295,6 +349,8 @@ curl -X POST http://127.0.0.1:8000/api/tasks \
 - **Supervisor 同进程用 MemorySaver**；跨进程 API 进程重启后会自动回退任务 checkpoint 续跑（v0.13）。
 - **Webhook apply**：`--apply-webhook` 可让审批通过后真的 POST 到执行器；默认 dry-run。
 - **simple 引擎**支持跨进程 resume；supervisor 引擎适合单进程 API/长驻服务。
+- **Checkpoint 历史**：`/api/tasks/{id}/checkpoints` 仅查看，不支持回滚；回滚需同时回滚外部 TaskRecord，暂未实现。
+- **Agent 在线编辑**：只覆盖已有文件；注册表（keywords/tools/schema）仍为代码内只读。
 
 ---
 

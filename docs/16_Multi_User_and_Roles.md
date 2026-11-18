@@ -131,6 +131,8 @@ X-Auth-Request-Role: admin
 - 有 tenant 的用户只能看到同 tenant 的任务；
 - 非 admin 只能看到/访问 `owner == 自己` 的任务；
 - 审批审计 `decided_by` 记录用户名；
+- Agent 文件：读接口三种角色都可；写接口仅 `admin`（无认证时开放）；
+- 全链路追踪 / Checkpoint：沿用任务可见性（非 admin 只看自己的任务）；
 - 无认证时 `owner=anonymous`，所有接口开放（仅本地）。
 
 ---
@@ -145,6 +147,11 @@ X-Auth-Request-Role: admin
 | `POST /api/tasks/{id}/resume` | ✅ | 自己的 | 403 |
 | `POST /api/tasks/{id}/cancel` | ✅ | 自己的 | 403 |
 | `GET /api/audits/{id}` | ✅ | 自己的 | 自己的 |
+| `GET /api/tasks/{id}/trace` | ✅ | 自己的 | 自己的 |
+| `GET /api/tasks/{id}/checkpoints` | ✅ | 自己的 | 自己的 |
+| `GET /api/agents` / `.../file` | ✅ | ✅ | ✅ |
+| `PUT /api/agents/{key}/file` | ✅ | 403 | 403 |
+| `GET /api/agents/edits` | ✅ | 403 | 403 |
 | `POST /api/evals` | ✅ | ✅ | 403 |
 | `GET /api/health` | 公开 | 公开 | 公开 |
 

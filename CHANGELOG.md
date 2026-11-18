@@ -4,6 +4,39 @@
 
 ---
 
+## [v0.30] — 2026-11-18
+
+### Phase 8c · Agent 管理 + 全链路追踪
+
+#### Agent / Skill / Prompt 管理
+
+- `GET /api/agents`：7 个 Agent 能力卡 + 磁盘文件清单；
+- `GET /api/agents/{key}/file?path=...`：读取 `SKILL.md`、`prompts/`、`references/`、`templates/` 白名单文件；
+- `PUT /api/agents/{key}/file`：admin-only 在线编辑（UTF-8，读 512KB / 写 256KB 上限）；
+- `GET /api/agents/edits`：最近编辑日志；
+- 每次写入自动备份到 `.runtime/agent_backups/<agent>/`，路径白名单 + 防穿越；
+- 后台新增「Agent 管理」页：能力卡 + 文件按钮 + Markdown 编辑器。
+
+#### 全链路追踪 + Checkpoint
+
+- `GET /api/tasks/{id}/trace`：slices / messages / audits 归一事件时间轴；
+- `GET /api/tasks/{id}/checkpoints`：只读 `SqliteSaver.list()` 列历史快照，含 step/source/state/interrupt 摘要；
+- 后台任务详情新增「全链路追踪」「Checkpoint」按钮：切片甘特条 + 详情 JSON + 快照列表；
+- 历史 checkpoint 当前仅查看，不提供回滚；续跑仍走审批 / `resume`。
+
+#### 测试
+
+- **220 个测试**（2 个 Postgres 集成在无 env 时 skip）；
+- 新增 14 个：Agent 文件服务/API 权限/路径安全、trace 事件、SQLite checkpoint 历史。
+
+#### 边界
+
+- Agent 编辑仅覆盖已存在文件，不提供新建/删除/重命名；
+- 智能体注册表（keywords/tools/schema）仍为代码内只读；
+- checkpoint 历史查看依赖 `langgraph-checkpoint-sqlite`；simple 引擎不写快照。
+
+---
+
 ## [v0.29] — 2026-11-18
 
 ### Phase 8b · 目录重构 + 系统管理

@@ -9,6 +9,9 @@
 - 评测 / 评测历史趋势
 - 告警 / 指标
 - 系统管理：租户 / 用户 / 模型配置（v0.29）
+- Agent 管理：能力卡 / `SKILL.md` / `prompts/` / `references/` / `templates/` 在线查看与编辑（保存自动备份，admin）
+- 全链路追踪：切片时间轴 + 执行消息 + 审批审计（v0.30）
+- Checkpoint：LangGraph 历史快照列表与 JSON（v0.30）
 
 启动：
 

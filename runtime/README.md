@@ -42,7 +42,8 @@ runtime/
 ├── evals.py            # 确定性评测跑批
 ├── llm.py              # 可选 LLM 客户端
 ├── creative.py         # 03/04/05/07 LLM 创意层
-├── web/                # 零构建 Web 控制台
+├── agent_files.py      # Agent 文件管理（SKILL/prompts 安全读写 + 自动备份）
+├── trace.py            # 全链路追踪 + checkpoint 历史读取
 ├── platforms.py        # 平台动作适配器（重试/幂等/HMAC）
 ├── auth.py             # 多用户/角色认证
 ├── providers.py        # 租户级模型配置 + Key 加密
@@ -176,6 +177,8 @@ python -m unittest discover -s runtime/tests -v
 | 租户隔离 | ✅（tenant_id） |
 | 租户级模型配置 | ✅（加密 Key + 测试连接） |
 | 租户/用户管理 | ✅（API + Web 系统管理） |
+| Agent/Skill/Prompt 管理 | ✅（`/api/agents` + Web，admin 写 + 自动备份） |
+| 全链路追踪 + Checkpoint 历史 | ✅（`/trace` / `/checkpoints` + Web 视图） |
 | TLS 反代样例 | ✅（`cross-border-ecommerce-api/deploy/` Caddy / Nginx） |
 | JWT 刷新 / 导出审计 | ✅ |
 | LLM 创意层 | ✅（03/04/05/07；默认关闭） |

@@ -41,6 +41,18 @@
   .envelope { border:1px solid var(--line); border-radius:10px; padding:10px; margin:8px 0; }
   .muted { color:var(--muted); }
   .error { color:var(--bad); white-space:pre-wrap; }
+  .timeline { display:flex; flex-direction:column; gap:8px; margin:10px 0 18px; }
+  .tl-row { display:grid; grid-template-columns:220px 1fr 76px; gap:8px; align-items:start; }
+  .tl-label { font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-top:5px; }
+  .tl-track { position:relative; background:#0e1428; border:1px solid var(--line); border-radius:6px; height:26px; }
+  .tl-bar { position:absolute; top:4px; bottom:4px; border-radius:4px; background:var(--accent); cursor:pointer; min-width:4px; }
+  .tl-ok { background:var(--ok); } .tl-failed,.tl-blocked { background:var(--bad); } .tl-interrupted { background:var(--warn); }
+  .tl-detail { grid-column:1 / -1; margin-top:2px; }
+  .tl-detail summary { color:var(--muted); cursor:pointer; font-size:12px; }
+  .editor { width:100%; min-height:58vh; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:13px; line-height:1.55; tab-size:2; }
+  .agent-card { border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px; }
+  .agent-card h3 { margin:0 0 4px; font-size:15px; }
+  .file-btn { margin:3px 4px 3px 0; padding:6px 9px; font-size:12px; }
   @media (max-width:900px) { main { grid-template-columns:1fr; height:auto; } }
 </style>
 </head>
@@ -82,6 +94,7 @@
       <button class="secondary" id="alerts">告警</button>
       <button class="secondary" id="metrics">指标</button>
       <button class="secondary" id="admin">系统管理</button>
+      <button class="secondary" id="agents">Agent 管理</button>
     </div>
     <h2 style="margin-top:22px">任务</h2>
     <select id="statusFilter" style="margin-bottom:10px">
@@ -227,6 +240,10 @@ async function showTask(id) {
     cancelButton.onclick = () => cancelTask(id);
     actionRow.appendChild(cancelButton);
   }
+  const traceButton = el("button", "全链路追踪", "secondary");
+  traceButton.onclick = () => showTrace(id);
+  const checkpointButton = el("button", "Checkpoint", "secondary");
+  checkpointButton.onclick = () => showCheckpoints(id);
   const auditButton = el("button", "查看审计", "secondary");
   auditButton.onclick = async () => {
     const data = await api(`/api/audits/${id}`);
@@ -234,7 +251,7 @@ async function showTask(id) {
   };
   const exportButton = el("button", "导出 JSON", "secondary");
   exportButton.onclick = () => downloadTask(id);
-  actionRow.append(auditButton, exportButton);
+  actionRow.append(traceButton, checkpointButton, auditButton, exportButton);
   detail.appendChild(actionRow);
 }
 function showEval(report) {
@@ -443,6 +460,164 @@ async function loadProviders(target) {
   catch (err) { target.textContent = err.message; }
 }
 
+async function loadAgents() {
+  try {
+    const data = await api("/api/agents");
+    const detail = $("detail"); detail.innerHTML = "";
+    detail.appendChild(el("h2", "Agent 管理"));
+    detail.appendChild(el("p", `共 ${data.agents.length} 个 Agent。SKILL.md / prompts / references / templates 可在线编辑，保存前自动备份到 .runtime/agent_backups。`, "muted"));
+    for (const agent of data.agents) {
+      const card = el("div", null, "agent-card");
+      card.appendChild(el("h3", `${agent.name} · ${agent.key}`));
+      card.appendChild(el("div", `${agent.dir} · ${agent.description}`, "muted"));
+      card.appendChild(el("div", `tools: ${(agent.tools || []).join(", ") || "-"} · approval: ${agent.approval_policy} · 需审批: ${agent.requires_approval ? "是" : "否"}`, "muted"));
+      const files = el("div");
+      for (const file of agent.files || []) {
+        const button = el("button", `${file.path} (${Math.round(file.size / 1024)}KB)`, "secondary file-btn");
+        button.onclick = () => showAgentFile(agent.key, file.path, agent.name);
+        files.appendChild(button);
+      }
+      if (!(agent.files || []).length) files.appendChild(el("span", "没有可管理的文件", "muted"));
+      card.appendChild(files);
+      const metaButton = el("button", "能力卡 JSON", "secondary file-btn");
+      metaButton.onclick = () => card.appendChild(el("pre", JSON.stringify(agent, null, 2)));
+      card.appendChild(metaButton);
+      detail.appendChild(card);
+    }
+  } catch (err) { alert(err.message); }
+}
+
+async function showAgentFile(key, path, name) {
+  try {
+    const file = await api(`/api/agents/${encodeURIComponent(key)}/file?path=${encodeURIComponent(path)}`);
+    const detail = $("detail"); detail.innerHTML = "";
+    detail.appendChild(el("h2", `${name || key} / ${file.path}`));
+    detail.appendChild(el("p", `大小 ${file.size} bytes · 更新于 ${file.updated_at} · 可编辑`, "muted"));
+    const area = document.createElement("textarea");
+    area.className = "editor";
+    area.value = file.content;
+    detail.appendChild(area);
+    const row = el("div", null, "row");
+    const save = el("button", "保存");
+    save.onclick = async () => {
+      try {
+        const result = await api(`/api/agents/${encodeURIComponent(key)}/file`, {
+          method: "PUT",
+          body: JSON.stringify({ path, content: area.value }),
+        });
+        alert(`已保存（${result.size} bytes）\n备份：${result.backup}`);
+      } catch (err) { alert(err.message); }
+    };
+    const back = el("button", "返回 Agent 列表", "secondary");
+    back.onclick = loadAgents;
+    row.append(save, back);
+    detail.appendChild(row);
+  } catch (err) { alert(err.message); }
+}
+
+function parseTime(value) {
+  const ts = Date.parse(value || "");
+  return Number.isFinite(ts) ? ts : null;
+}
+
+function renderTimeline(trace) {
+  const box = el("div", null, "timeline");
+  const slices = trace.slices || [];
+  if (!slices.length) {
+    box.appendChild(el("p", "没有切片记录。", "muted"));
+    return box;
+  }
+  const starts = slices.map((slice) => parseTime(slice.started_at)).filter((value) => value !== null);
+  const ends = slices.map((slice) => parseTime(slice.finished_at)).filter((value) => value !== null);
+  const t0 = starts.length ? Math.min(...starts) : null;
+  const t1 = ends.length ? Math.max(...ends) : null;
+  const span = t0 !== null && t1 !== null && t1 > t0 ? t1 - t0 : null;
+  slices.forEach((slice, index) => {
+    const row = el("div", null, "tl-row");
+    row.appendChild(el("div", `${slice.no}. ${slice.agent}`, "tl-label"));
+    const track = el("div", null, "tl-track");
+    const bar = el("div", null, `tl-bar tl-${slice.status || "unknown"}`);
+    if (span !== null) {
+      const start = parseTime(slice.started_at);
+      const end = parseTime(slice.finished_at);
+      if (start !== null && end !== null) {
+        bar.style.left = `${((start - t0) / span) * 100}%`;
+        bar.style.width = `${Math.max(1.2, ((end - start) / span) * 100)}%`;
+      }
+    } else {
+      bar.style.left = `${(index / slices.length) * 90}%`;
+      bar.style.width = `${Math.max(6, 80 / slices.length)}%`;
+    }
+    bar.title = `${slice.status} · ${slice.elapsed_ms ?? 0}ms · ${slice.started_at || ""} → ${slice.finished_at || ""}`;
+    track.appendChild(bar);
+    row.appendChild(track);
+    row.appendChild(el("div", `${slice.elapsed_ms ?? 0}ms`, "muted"));
+    const details = el("details", null, "tl-detail");
+    details.appendChild(el("summary", "详情"));
+    details.appendChild(el("pre", JSON.stringify(slice, null, 2)));
+    row.appendChild(details);
+    box.appendChild(row);
+  });
+  return box;
+}
+
+async function showTrace(id) {
+  try {
+    const trace = await api(`/api/tasks/${id}/trace`);
+    const detail = $("detail"); detail.innerHTML = "";
+    detail.appendChild(el("h2", `全链路追踪 · ${id.slice(0, 16)}…`));
+    const intents = (trace.route && trace.route.intents) || [];
+    detail.appendChild(el("p", `状态：${trace.status} · 路由：${intents.join(" → ") || "-"} · 切片：${(trace.slices || []).length} · 审计：${(trace.audits || []).length} · 消息：${(trace.messages || []).length}`, "muted"));
+    detail.appendChild(el("h2", "切片时间轴"));
+    detail.appendChild(renderTimeline(trace));
+    detail.appendChild(el("h2", "执行消息"));
+    if (!(trace.messages || []).length) detail.appendChild(el("p", "无", "muted"));
+    for (const message of trace.messages || []) detail.appendChild(el("div", `• ${message}`, "muted"));
+    detail.appendChild(el("h2", `审批审计（${(trace.audits || []).length}）`));
+    if (!(trace.audits || []).length) detail.appendChild(el("p", "无", "muted"));
+    for (const audit of trace.audits || []) {
+      const box = el("div", null, "envelope");
+      box.appendChild(el("div", `${audit.at || ""} · ${audit.decision || ""} · ${audit.decided_by || ""}`));
+      if (audit.comment) box.appendChild(el("div", audit.comment, "muted"));
+      detail.appendChild(box);
+    }
+    const back = el("button", "返回任务详情", "secondary");
+    back.onclick = () => showTask(id);
+    detail.appendChild(back);
+  } catch (err) { alert(err.message); }
+}
+
+async function showCheckpoints(id) {
+  try {
+    const data = await api(`/api/tasks/${id}/checkpoints`);
+    const detail = $("detail"); detail.innerHTML = "";
+    detail.appendChild(el("h2", `Checkpoint · ${id.slice(0, 16)}…`));
+    detail.appendChild(el("p", `checkpointer=${data.checkpointer} · available=${data.available} · 任务状态=${data.task_status || "-"}`, "muted"));
+    if (data.reason) detail.appendChild(el("p", data.reason, "muted"));
+    if (data.task_checkpoint && Object.keys(data.task_checkpoint).length) {
+      detail.appendChild(el("h2", "任务内 checkpoint"));
+      detail.appendChild(el("pre", JSON.stringify(data.task_checkpoint, null, 2)));
+    }
+    detail.appendChild(el("h2", `历史快照（${(data.snapshots || []).length}）`));
+    if (!(data.snapshots || []).length) detail.appendChild(el("p", "没有历史快照。simple 引擎不会写 LangGraph checkpoint。", "muted"));
+    for (const snapshot of data.snapshots || []) {
+      const box = el("div", null, "envelope");
+      const state = snapshot.state || {};
+      box.appendChild(el("div", `step ${snapshot.step ?? "-"} · ${snapshot.source || "-"} · ${snapshot.ts || ""}`));
+      box.appendChild(el("div", `id=${String(snapshot.checkpoint_id || "").slice(0, 18)}… · status=${state.status || "-"} · layer=${state.current_layer ?? "-"}${snapshot.has_interrupt ? " · interrupt" : ""}`, "muted"));
+      const details = el("details");
+      details.appendChild(el("summary", "快照 JSON"));
+      details.appendChild(el("pre", JSON.stringify(snapshot, null, 2)));
+      box.appendChild(details);
+      detail.appendChild(box);
+    }
+    detail.appendChild(el("p", "说明：历史快照当前仅支持查看；续跑请使用审批按钮或 /api/tasks/{id}/resume。", "muted"));
+    const back = el("button", "返回任务详情", "secondary");
+    back.onclick = () => showTask(id);
+    detail.appendChild(back);
+  } catch (err) { alert(err.message); }
+}
+
 async function loadAlerts() {
   try {
     const data = await api("/api/alerts");
@@ -568,6 +743,7 @@ $("evalHistory").onclick = loadEvalHistory;
 $("alerts").onclick = loadAlerts;
 $("metrics").onclick = loadMetrics;
 $("admin").onclick = loadAdmin;
+$("agents").onclick = loadAgents;
 $("statusFilter").onchange = loadTasks;
 loadHealth(); loadTasks();
 </script>

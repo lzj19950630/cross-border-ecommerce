@@ -110,6 +110,8 @@ SOP 章节与 Agent 模块的逐条对应关系见 [`docs/00_Architecture_SOP_to
 | API 幂等 + 节点耗时 + 租户隔离 | `Idempotency-Key` · `tenant_id` |
 | 租户级模型配置 + Key 加密 | `/api/providers` · `RUNTIME_SECRET_KEY` |
 | 后台系统管理页（租户/用户/模型） | `cross-border-ecommerce-admin/` |
+| Agent / Skill / Prompt 管理（在线查看/编辑 + 自动备份） | `/api/agents` · `cross-border-ecommerce-admin/` |
+| 全链路追踪 + Checkpoint 历史 | `/api/tasks/{id}/trace` · `/api/tasks/{id}/checkpoints` |
 | JWT 注销 / token 吊销 / 刷新轮换 | `/api/auth/logout` · `/api/auth/refresh` |
 | 7/7 Agent 评测覆盖 + 任务取消 | `Templates/eval_case.yaml` · `/api/tasks/{id}/cancel` |
 | 任务导出 / 评测趋势 | `/api/tasks/{id}/export` · Web 评测历史图 |
@@ -413,7 +415,8 @@ AI-Cross-Border-Ecommerce-Agent-Toolkit/
 | **v0.26** | **Phase 7a 限流/看板/就绪**：请求限流 + 指标看板 + v1 就绪清单 + 190 个测试 |
 | **v0.27** | **Phase 7b 交付/幂等/租户**：交付审核 + ZIP + API 幂等 + 租户隔离 + 200 个测试 |
 | **v0.28** | **Phase 8a 租户模型/加密**：租户级 provider 配置 + Key 加密 + 204 个测试 |
-| **v0.29** | **Phase 8b 目录重构/系统管理**：API/Admin 目录拆分 + 租户/用户/模型管理页 + 206 个测试（当前） |
+| **v0.29** | **Phase 8b 目录重构/系统管理**：API/Admin 目录拆分 + 租户/用户/模型管理页 + 206 个测试 |
+| **v0.30** | **Phase 8c Agent/追踪**：Agent 管理页 + 全链路追踪 + Checkpoint 历史 + 220 个测试（当前） |
 | **v1.0** | 打通完整工作流，输出一键上架用的素材包 |
 | V2 | 接入平台 API（Shopee / Mercado Livre）自动拉取数据 |
 | V3 | 网页应用，可视化跑工作流 |

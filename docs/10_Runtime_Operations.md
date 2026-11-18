@@ -214,6 +214,7 @@ rm -rf .runtime/
 | adapter 报缺映射 | YAML 未覆盖该 action | 补 actions 映射 |
 | adapter 报缺 token | 环境变量未设置 | 设置 `token_env` 指向的变量 |
 | supervisor 跨进程 resume | 无 MemorySaver 状态时自动回退任务 checkpoint 续跑 | 已支持；失败看 task.checkpoint / error |
+| 想看 checkpoint 历史 | 需要 LangGraph sqlite checkpointer | `GET /api/tasks/{id}/checkpoints` 或 Web「Checkpoint」 |
 | YAML 解析失败 | 缺 PyYAML | `pip install pyyaml` 或转 JSON |
 
 ---
@@ -226,6 +227,7 @@ rm -rf .runtime/
 - **LLM 创意层**：默认关闭，显式 `--creative`；详见 [13_LLM_Creative_Layer.md](13_LLM_Creative_Layer.md)。
 - **依赖版本注意**：本机 `langgraph 0.2.76` 与 `langgraph-checkpoint-sqlite 3.x` 存在版本声明冲突（实际测试可用）；生产建议按底座 `langgraph>=1.2` 对齐版本，或只用任务 checkpoint 回退。
 - **apply 是 dry-run**：不会改平台后台。
+- **Checkpoint 历史仅查看**：`/api/tasks/{id}/checkpoints` 不提供回滚；续跑走审批 / `resume`。
 - **03/04/05/07 是确定性校验层**：完整 LLM 创意生成还没接。
 - **LangGraph 未接入**：当前是自研编排，语义已对齐底座。
 

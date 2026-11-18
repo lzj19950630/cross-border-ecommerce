@@ -32,6 +32,7 @@
 | **v0.27** | Phase 7b 交付/幂等/租户 | 交付审核 + ZIP + API 幂等 + 租户隔离 | ✅ 已完成 |
 | **v0.28** | Phase 8a 租户模型/加密 | 租户级 provider 配置 + Key 加密 | ✅ 已完成 |
 | **v0.29** | Phase 8b 目录/系统管理 | API/Admin 拆分 + 租户/用户/模型管理页 | ✅ 已完成 |
+| **v0.30** | Phase 8c Agent/追踪 | Agent 管理页 + 全链路追踪 + Checkpoint 历史 | ✅ 已完成 |
 | v1.0 | 串联 | 完整工作流一键跑通，输出上架素材包 | 📋 规划 |
 | V2 | API | 接入 Shopee / Mercado Livre 平台 API | 📋 规划 |
 | V3 | Web | 网页应用，可视化工作流 | 📋 规划 |

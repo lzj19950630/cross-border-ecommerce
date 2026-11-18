@@ -12,6 +12,11 @@
     GET  /api/tasks/{thread_id}
     GET  /api/tasks/{thread_id}/approvals
     POST /api/tasks/{thread_id}/resume
+    GET  /api/tasks/{thread_id}/trace
+    GET  /api/tasks/{thread_id}/checkpoints
+    GET  /api/agents
+    GET  /api/agents/{key}/file
+    PUT  /api/agents/{key}/file
     GET  /api/tools
     GET  /api/actions
 """
@@ -31,6 +36,7 @@ from pydantic import BaseModel, Field
 
 from . import __version__
 from .actions import DEFAULT_ACTION_REGISTRY
+from .agent_files import AgentFileError, AgentFileService
 from .alerts import collect_alerts
 from .delivery import archive_bytes, machine_review
 from .metrics import collect_metrics, prometheus_text
@@ -42,6 +48,7 @@ from .factory import make_store
 from .llm import load_llm_from_env
 from .storage import TaskStore
 from .tools import DEFAULT_TOOL_REGISTRY
+from .trace import build_trace, list_checkpoints
 
 
 class TaskCreateRequest(BaseModel):
@@ -78,6 +85,11 @@ class ProviderConfigRequest(BaseModel):
     base_url: str
     model: str
     api_key: str
+
+
+class AgentFileWriteRequest(BaseModel):
+    path: str = Field(min_length=1)
+    content: str
 
 
 class DeliveryDecisionRequest(BaseModel):
@@ -153,6 +165,7 @@ def create_app(
     apply_webhook: str | None = None,
     checkpointer: str = "auto",
     checkpoint_db: str = ".runtime/checkpoints.db",
+    agent_service: AgentFileService | None = None,
     creative: bool = False,
     apply_adapter: str | None = None,
     api_key: str | None = None,
@@ -246,6 +259,7 @@ def create_app(
             request.state.principal = principal
             return await call_next(request)
     providers = ProviderService(task_store, secret_key=secret_key)
+    agent_files = agent_service or AgentFileService()
     runners = None
     if creative:
         from .creative import build_creative_registry
@@ -279,7 +293,15 @@ def create_app(
     app.state.rate_limit = rate_limit
     app.state.action_policy = action_policy
     app.state.providers = providers
+    app.state.agent_files = agent_files
+    app.state.checkpoint_db = checkpoint_db
     app.state.cors_origins = cors_origins or []
+
+    def _task_or_404(thread_id: str):
+        try:
+            return runtime.get_task(thread_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     web_dir = Path(__file__).resolve().parent.parent / "cross-border-ecommerce-admin"
     if web_dir.is_dir():
@@ -543,6 +565,21 @@ def create_app(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return task.to_dict()
 
+    @app.get("/api/tasks/{thread_id}/trace")
+    def task_trace(thread_id: str, request: Request) -> dict[str, Any]:
+        task = _task_or_404(thread_id)
+        _check_task(task, request)
+        return build_trace(task, runtime.store.list_audits(thread_id))
+
+    @app.get("/api/tasks/{thread_id}/checkpoints")
+    def task_checkpoints(thread_id: str, request: Request) -> dict[str, Any]:
+        task = _task_or_404(thread_id)
+        _check_task(task, request)
+        data = list_checkpoints(checkpoint_db, thread_id)
+        data["task_checkpoint"] = task.checkpoint
+        data["task_status"] = task.status
+        return data
+
     @app.post("/api/evals")
     def run_evals(request: Request) -> dict[str, Any]:
         _require(request, {"admin", "operator"})
@@ -693,6 +730,49 @@ def create_app(
             return providers.test(principal.tenant, name)
         except ProviderError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/agents")
+    def list_agents(request: Request) -> dict[str, Any]:
+        _require(request, {"admin", "operator", "viewer"})
+        return {"agents": agent_files.list_agents()}
+
+    @app.get("/api/agents/edits")
+    def agent_edit_log(request: Request, limit: int = 50) -> dict[str, Any]:
+        _require(request, {"admin"})
+        return {"edits": agent_files.edits(limit=limit)}
+
+    @app.get("/api/agents/{key}")
+    def get_agent(key: str, request: Request) -> dict[str, Any]:
+        _require(request, {"admin", "operator", "viewer"})
+        try:
+            return agent_files.get_agent(key)
+        except AgentFileError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+    @app.get("/api/agents/{key}/file")
+    def read_agent_file(key: str, request: Request, path: str) -> dict[str, Any]:
+        _require(request, {"admin", "operator", "viewer"})
+        try:
+            return agent_files.read(key, path)
+        except AgentFileError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+    @app.put("/api/agents/{key}/file")
+    def write_agent_file(
+        key: str, body: AgentFileWriteRequest, request: Request
+    ) -> dict[str, Any]:
+        principal = _require(request, {"admin"})
+        try:
+            result = agent_files.write(
+                key,
+                body.path,
+                body.content,
+                user=principal.name if principal else "anonymous",
+            )
+        except AgentFileError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        result["saved_by"] = principal.name if principal else "anonymous"
+        return result
 
     @app.get("/api/metrics")
     def metrics_json() -> dict[str, Any]:
