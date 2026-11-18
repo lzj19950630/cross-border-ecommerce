@@ -5,12 +5,25 @@ FastAPI 运行时入口与部署文件。平台核心代码在仓库根目录的
 ## 开发启动
 
 ```bash
-# 推荐
-python -m runtime serve --port 8000
+# 推荐（本目录内）
+cd cross-border-ecommerce-api
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# 或直接跑本目录入口
-python cross-border-ecommerce-api/main.py
+# 或平台 CLI
+python -m runtime serve --port 8000
 ```
+
+装配参数通过环境变量控制，也可写入本目录 `.env`（参考 `.env.example`，真实环境变量优先）：
+
+```dotenv
+RUNTIME_ENGINE=supervisor          # simple | supervisor
+RUNTIME_EXECUTOR=langgraph         # auto | sequential | langgraph
+RUNTIME_CHECKPOINTER=sqlite        # auto | memory | sqlite
+RUNTIME_CHECKPOINT_DB=.runtime/checkpoints.db
+RUNTIME_CREATIVE=1                 # 启用 LLM 创意层
+```
+
+默认数据目录锚定到仓库根目录 `.runtime/`，从本目录启动与 `python -m runtime serve` 共用同一份数据。
 
 ## Docker
 
